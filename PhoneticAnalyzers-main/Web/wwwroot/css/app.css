@@ -1,0 +1,304 @@
+/* Modern PhoneticAnalyzers Styles */
+
+:root {
+    --primary-color: #0d6efd;
+    --secondary-color: #6c757d;
+    --success-color: #198754;
+    --info-color: #0dcaf0;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --light-color: #f8f9fa;
+    --dark-color: #212529;
+    --border-radius: 0.5rem;
+    --shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    --shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+}
+
+/* Layout */
+.app-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.main-content {
+    flex: 1;
+    background-color: var(--light-color);
+}
+
+/* Navigation */
+.navbar-brand {
+    font-size: 1.5rem;
+}
+
+.nav-link {
+    transition: all 0.3s ease;
+    border-radius: var(--border-radius);
+    margin: 0 0.25rem;
+}
+
+.nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.nav-link.active {
+    background-color: rgba(255, 255, 255, 0.2);
+    font-weight: 600;
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+.card-header {
+    background: linear-gradient(135deg, var(--primary-color), #0056b3);
+    color: white;
+    border-radius: var(--border-radius) var(--border-radius) 0 0 !important;
+    font-weight: 600;
+}
+
+/* Statistics Cards */
+.stat-card {
+    background: linear-gradient(135deg, #fff, #f8f9fa);
+    border-left: 4px solid var(--primary-color);
+}
+
+.stat-card.success {
+    border-left-color: var(--success-color);
+}
+
+.stat-card.warning {
+    border-left-color: var(--warning-color);
+}
+
+.stat-card.danger {
+    border-left-color: var(--danger-color);
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: var(--secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Forms */
+.form-control, .form-select {
+    border-radius: var(--border-radius);
+    border: 1px solid #dee2e6;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.input-group .form-control {
+    border-radius: 0 var(--border-radius) var(--border-radius) 0;
+}
+
+.input-group .btn {
+    border-radius: var(--border-radius) 0 0 var(--border-radius);
+}
+
+/* Buttons */
+.btn {
+    border-radius: var(--border-radius);
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color), #0056b3);
+    border: none;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #0056b3, #004494);
+    transform: translateY(-1px);
+}
+
+/* Tables */
+.table {
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.table thead th {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    font-weight: 600;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Search Results */
+.search-result-item {
+    border-left: 4px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.search-result-item:hover {
+    border-left-color: var(--primary-color);
+    background-color: rgba(13, 110, 253, 0.02);
+}
+
+.similarity-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.similarity-high {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.similarity-medium {
+    background-color: var(--warning-color);
+    color: white;
+}
+
+.similarity-low {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+/* Phonetic Codes */
+.phonetic-codes {
+    background-color: #f8f9fa;
+    border-radius: var(--border-radius);
+    padding: 0.75rem;
+    font-family: 'Courier New', monospace;
+    border: 1px solid #dee2e6;
+}
+
+.phonetic-code {
+    display: inline-block;
+    background-color: var(--primary-color);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    margin: 0.125rem;
+    font-size: 0.875rem;
+}
+
+/* Loading States */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--border-radius);
+    z-index: 1000;
+}
+
+/* Progress Bars */
+.progress {
+    border-radius: var(--border-radius);
+    background-color: #e9ecef;
+}
+
+.progress-bar {
+    transition: width 0.6s ease;
+}
+
+/* Alerts */
+.alert {
+    border-radius: var(--border-radius);
+    border: none;
+}
+
+.alert-primary {
+    background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(13, 110, 253, 0.05));
+}
+
+.alert-success {
+    background: linear-gradient(135deg, rgba(25, 135, 84, 0.1), rgba(25, 135, 84, 0.05));
+}
+
+.alert-warning {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(255, 193, 7, 0.05));
+}
+
+.alert-danger {
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.1), rgba(220, 53, 69, 0.05));
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .stat-number {
+        font-size: 2rem;
+    }
+    
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    .table-responsive {
+        border-radius: var(--border-radius);
+    }
+}
+
+/* Animation Classes */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-in {
+    animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #0056b3;
+}

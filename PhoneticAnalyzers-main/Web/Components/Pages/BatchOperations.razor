@@ -1,0 +1,527 @@
+@page "/batch-operations"
+@using PhoneticAnalyzers.Web.Services
+@using Microsoft.AspNetCore.Components.Forms
+@using System.ComponentModel.DataAnnotations
+@inject PhoneticAnalyzersApiService ApiService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Batch Operations - PhoneticAnalyzers</PageTitle>
+
+<div class="fade-in">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-6 fw-bold mb-0">Batch Operations</h1>
+            <p class="text-muted mb-0">Import multiple persons efficiently with progress tracking</p>
+        </div>
+    </div>
+
+    <!-- Batch Input Options -->
+    <div class="row mb-4">
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-keyboard me-2"></i>Manual Entry
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Enter persons manually, one per line</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Persons Data</label>
+                        <textarea @bind="ManualInput" 
+                                class="form-control" 
+                                rows="8" 
+                                placeholder="Format: ExternalID|FullName&#10;EMP001|John Smith&#10;EMP002|Jane Doe&#10;EMP003|Robert Johnson"></textarea>
+                        <div class="form-text">
+                            <strong>Format:</strong> ExternalID|FullName (one per line)<br>
+                            <strong>Example:</strong> EMP001|John Smith
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <button class="btn btn-outline-secondary" @onclick="LoadSampleData">
+                            <i class="bi bi-file-text me-2"></i>Load Sample Data
+                        </button>
+                        <button class="btn btn-primary" @onclick="ProcessManualInput" disabled="@IsProcessing">
+                            <i class="bi bi-upload me-2"></i>Process (@GetPersonCount() persons)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-file-earmark-arrow-up me-2"></i>File Upload
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Upload a CSV or text file with person data</p>
+                    
+                    <div class="mb-3">
+                        <InputFile OnChange="HandleFileSelected" 
+                                 class="form-control" 
+                                 accept=".csv,.txt" />
+                        <div class="form-text">
+                            Supported formats: CSV (.csv), Text (.txt)<br>
+                            Expected columns: ExternalID, FullName
+                        </div>
+                    </div>
+
+                    @if (UploadedFile != null)
+                    {
+                        <div class="alert alert-info">
+                            <i class="bi bi-file-check me-2"></i>
+                            <strong>File Selected:</strong> @UploadedFile.Name
+                            <br><small>Size: @FormatFileSize(UploadedFile.Size)</small>
+                        </div>
+                        
+                        <button class="btn btn-primary w-100" @onclick="ProcessUploadedFile" disabled="@IsProcessing">
+                            <i class="bi bi-upload me-2"></i>Process File
+                        </button>
+                    }
+                    else
+                    {
+                        <div class="text-center py-4 border border-2 border-dashed rounded">
+                            <i class="bi bi-cloud-upload fs-1 text-muted"></i>
+                            <p class="text-muted mb-0">Select a file to upload</p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Processing Progress -->
+    @if (IsProcessing)
+    {
+        <div class="card mb-4 slide-in">
+            <div class="card-header">
+                <i class="bi bi-gear-fill me-2"></i>Processing Progress
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <div class="progress mb-2">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 style="width: @(ProcessingProgress)%"></div>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <small>@CurrentProcessingStatus</small>
+                            <small>@ProcessedCount / @TotalCount processed</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Results -->
+    @if (BatchResult != null)
+    {
+        <div class="card mb-4 slide-in">
+            <div class="card-header">
+                <i class="bi bi-check-circle me-2"></i>Batch Processing Results
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="stat-number text-primary">@BatchResult.TotalProcessed</div>
+                            <div class="stat-label">Total Processed</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="stat-number text-success">@BatchResult.Successful</div>
+                            <div class="stat-label">Successful</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="stat-number text-danger">@BatchResult.Failed</div>
+                            <div class="stat-label">Failed</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <div class="stat-number text-info">@GetSuccessRate()%</div>
+                            <div class="stat-label">Success Rate</div>
+                        </div>
+                    </div>
+                </div>
+
+                @if (BatchResult.Results.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>External ID</th>
+                                    <th>Status</th>
+                                    <th>Person ID</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var result in BatchResult.Results.Take(10))
+                                {
+                                    <tr>
+                                        <td><code>@result.ExternalId</code></td>
+                                        <td>
+                                            @if (result.Status == "success")
+                                            {
+                                                <span class="badge bg-success">Success</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-danger">Failed</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (result.PersonId.HasValue)
+                                            {
+                                                <span>@result.PersonId.Value</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrEmpty(result.Error))
+                                            {
+                                                <small class="text-danger">@result.Error</small>
+                                            }
+                                            else
+                                            {
+                                                <small class="text-success">Added successfully</small>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                        
+                        @if (BatchResult.Results.Count > 10)
+                        {
+                            <div class="text-center mt-3">
+                                <small class="text-muted">Showing first 10 results of @BatchResult.Results.Count total</small>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (BatchResult.Errors.Any())
+                {
+                    <div class="alert alert-warning">
+                        <h6 class="alert-heading">
+                            <i class="bi bi-exclamation-triangle me-2"></i>Errors Encountered
+                        </h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <tbody>
+                                    @foreach (var error in BatchResult.Errors.Take(5))
+                                    {
+                                        <tr>
+                                            <td><code>@error.ExternalId</code></td>
+                                            <td><small class="text-danger">@error.Error</small></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Error Message -->
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="alert alert-danger d-flex align-items-center slide-in">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <div class="flex-grow-1">
+                <strong>Batch Processing Error:</strong> @ErrorMessage
+            </div>
+            <button type="button" class="btn-close" @onclick='() => ErrorMessage = ""'></button>
+        </div>
+    }
+
+    <!-- Tips -->
+    <div class="card">
+        <div class="card-header">
+            <i class="bi bi-lightbulb me-2"></i>Batch Processing Tips
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-bold text-primary">Best Practices</h6>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Use unique External IDs to avoid duplicates
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Process in batches of 100-500 for optimal performance
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Validate data format before processing
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-bold text-primary">File Format</h6>
+                    <ul class="list-unstyled">
+                        <li class="mb-2">
+                            <i class="bi bi-file-text text-info me-2"></i>
+                            <strong>CSV:</strong> ExternalID,FullName
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-file-text text-info me-2"></i>
+                            <strong>Text:</strong> ExternalID|FullName
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-file-text text-info me-2"></i>
+                            Maximum file size: 10MB
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string ManualInput = "";
+    private IBrowserFile? UploadedFile;
+    private bool IsProcessing = false;
+    private string ErrorMessage = "";
+    private BatchIngestResult? BatchResult;
+    
+    // Progress tracking
+    private int ProcessedCount = 0;
+    private int TotalCount = 0;
+    private string CurrentProcessingStatus = "";
+    private double ProcessingProgress => TotalCount > 0 ? (double)ProcessedCount / TotalCount * 100 : 0;
+
+    private void LoadSampleData()
+    {
+        ManualInput = @"EMP001|John Smith
+EMP002|Jane Doe  
+EMP003|Robert Johnson
+EMP004|Maria Garcia
+EMP005|David Wilson
+EMP006|Catherine Brown
+EMP007|Michael Davis
+EMP008|Sarah Miller
+EMP009|James Wilson
+EMP010|Lisa Anderson";
+    }
+
+    private int GetPersonCount()
+    {
+        if (string.IsNullOrWhiteSpace(ManualInput)) return 0;
+        
+        return ManualInput
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Count(line => line.Trim().Contains('|'));
+    }
+
+    private async Task ProcessManualInput()
+    {
+        if (string.IsNullOrWhiteSpace(ManualInput)) return;
+
+        var persons = ParseManualInput();
+        if (persons.Any())
+        {
+            await ProcessPersonsBatch(persons);
+        }
+    }
+
+    private List<PersonData> ParseManualInput()
+    {
+        var persons = new List<PersonData>();
+        var lines = ManualInput.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var line in lines)
+        {
+            var parts = line.Trim().Split('|');
+            if (parts.Length >= 2)
+            {
+                persons.Add(new PersonData
+                {
+                    ExternalId = parts[0].Trim(),
+                    FullName = parts[1].Trim(),
+                    ExpandNicknames = true
+                });
+            }
+        }
+
+        return persons;
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        await Task.CompletedTask; // Suppress async warning
+        UploadedFile = e.File;
+        ErrorMessage = "";
+        StateHasChanged();
+    }
+
+    private async Task ProcessUploadedFile()
+    {
+        if (UploadedFile == null) return;
+
+        try
+        {
+            // Read file content
+            var buffer = new byte[UploadedFile.Size];
+            await UploadedFile.OpenReadStream().ReadAsync(buffer);
+            var content = System.Text.Encoding.UTF8.GetString(buffer);
+
+            // Parse based on file extension
+            var persons = UploadedFile.Name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)
+                ? ParseCsvContent(content)
+                : ParseTextContent(content);
+
+            if (persons.Any())
+            {
+                await ProcessPersonsBatch(persons);
+            }
+            else
+            {
+                ErrorMessage = "No valid person data found in the uploaded file.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error processing file: {ex.Message}";
+        }
+    }
+
+    private List<PersonData> ParseCsvContent(string content)
+    {
+        var persons = new List<PersonData>();
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        
+        // Skip header if it exists
+        var startIndex = lines.Length > 0 && lines[0].ToLower().Contains("external") ? 1 : 0;
+
+        for (int i = startIndex; i < lines.Length; i++)
+        {
+            var parts = lines[i].Split(',');
+            if (parts.Length >= 2)
+            {
+                persons.Add(new PersonData
+                {
+                    ExternalId = parts[0].Trim().Trim('"'),
+                    FullName = parts[1].Trim().Trim('"'),
+                    ExpandNicknames = true
+                });
+            }
+        }
+
+        return persons;
+    }
+
+    private List<PersonData> ParseTextContent(string content)
+    {
+        var persons = new List<PersonData>();
+        var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var line in lines)
+        {
+            var parts = line.Trim().Split('|');
+            if (parts.Length >= 2)
+            {
+                persons.Add(new PersonData
+                {
+                    ExternalId = parts[0].Trim(),
+                    FullName = parts[1].Trim(),
+                    ExpandNicknames = true
+                });
+            }
+        }
+
+        return persons;
+    }
+
+    private async Task ProcessPersonsBatch(List<PersonData> persons)
+    {
+        IsProcessing = true;
+        ErrorMessage = "";
+        BatchResult = null;
+        ProcessedCount = 0;
+        TotalCount = persons.Count;
+        
+        try
+        {
+            CurrentProcessingStatus = "Initializing batch process...";
+            StateHasChanged();
+
+            // Simulate progress for demo (in real implementation, this would be actual progress)
+            var progressTask = SimulateProgress();
+
+            // Process the batch
+            BatchResult = await ApiService.AddPersonsBatchAsync(persons);
+
+            // Wait for progress simulation to complete
+            await progressTask;
+
+            CurrentProcessingStatus = "Batch processing completed!";
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        finally
+        {
+            IsProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SimulateProgress()
+    {
+        var random = new Random();
+        
+        while (ProcessedCount < TotalCount)
+        {
+            await Task.Delay(100); // Simulate processing time
+            
+            var increment = random.Next(1, Math.Min(5, TotalCount - ProcessedCount + 1));
+            ProcessedCount = Math.Min(ProcessedCount + increment, TotalCount);
+            
+            CurrentProcessingStatus = $"Processing person {ProcessedCount} of {TotalCount}...";
+            StateHasChanged();
+        }
+    }
+
+    private string FormatFileSize(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            len = len / 1024;
+        }
+        return $"{len:0.##} {sizes[order]}";
+    }
+
+    private int GetSuccessRate()
+    {
+        if (BatchResult == null || BatchResult.TotalProcessed == 0) return 0;
+        return (int)Math.Round((double)BatchResult.Successful / BatchResult.TotalProcessed * 100);
+    }
+}

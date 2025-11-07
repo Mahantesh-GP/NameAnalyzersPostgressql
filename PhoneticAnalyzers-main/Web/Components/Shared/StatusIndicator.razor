@@ -1,0 +1,64 @@
+@using PhoneticAnalyzers.Web.Services
+@inject PhoneticAnalyzersApiService ApiService
+@implements IDisposable
+
+<div class="d-flex align-items-center">
+    @if (IsLoading)
+    {
+        <div class="spinner-border spinner-border-sm text-light me-2" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <small class="text-light">Checking...</small>
+    }
+    else if (IsHealthy)
+    {
+        <i class="bi bi-check-circle-fill text-success me-2"></i>
+        <small class="text-light">API Online</small>
+    }
+    else
+    {
+        <i class="bi bi-x-circle-fill text-danger me-2"></i>
+        <small class="text-light">API Offline</small>
+    }
+</div>
+
+@code {
+    private bool IsHealthy { get; set; } = false;
+    private bool IsLoading { get; set; } = true;
+    private Timer? _healthCheckTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckHealthAsync();
+        
+        // Set up periodic health checks every 30 seconds
+        _healthCheckTimer = new Timer(async _ => await InvokeAsync(CheckHealthAsync), 
+                                    null, TimeSpan.Zero, TimeSpan.FromSeconds(30));
+    }
+
+    private async Task CheckHealthAsync()
+    {
+        IsLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var health = await ApiService.HealthCheckAsync();
+            IsHealthy = health != null && health.Status == "Healthy";
+        }
+        catch
+        {
+            IsHealthy = false;
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        _healthCheckTimer?.Dispose();
+    }
+}

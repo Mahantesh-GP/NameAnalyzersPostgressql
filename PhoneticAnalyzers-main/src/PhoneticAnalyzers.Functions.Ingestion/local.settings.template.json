@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "FUNCTIONS_EXTENSION_VERSION": "~4",
+    "ConnectionStrings__DefaultConnection": "Host=localhost;Database=phonetic_analyzers_dev;Username=postgres;Password=postgres;Port=5432;",
+    "ServiceBusConnection": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=your-key-here",
+    "EventHubConnection": "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=your-key-here",
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "",
+    "KeyVaultUrl": "",
+    "ASPNETCORE_ENVIRONMENT": "Development"
+  }
+}

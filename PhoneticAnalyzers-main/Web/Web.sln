@@ -1,0 +1,24 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PhoneticAnalyzers.Web", "PhoneticAnalyzers.Web.csproj", "{65949FDC-8057-9508-3029-E3EF43715CD1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{65949FDC-8057-9508-3029-E3EF43715CD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{65949FDC-8057-9508-3029-E3EF43715CD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{65949FDC-8057-9508-3029-E3EF43715CD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{65949FDC-8057-9508-3029-E3EF43715CD1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {9D6CF0D5-9A34-4E28-9978-4CDA860DFCFD}
+	EndGlobalSection
+EndGlobal

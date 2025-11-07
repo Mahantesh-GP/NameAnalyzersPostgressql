@@ -1,0 +1,34 @@
+@using PhoneticAnalyzers.Web.Services
+
+@if (Errors is { Count: > 0 })
+{
+    <div class="validation-summary" role="alert" aria-live="polite">
+        <h4>@(Title ?? "Validation Errors")</h4>
+        @if (!string.IsNullOrWhiteSpace(Detail))
+        {
+            <p class="text-muted">@Detail</p>
+        }
+        <ul>
+            @foreach (var err in Errors)
+            {
+                <li><code>@err.Field</code>: @err.Message</li>
+            }
+        </ul>
+        @if (Footer != null)
+        {
+            <div class="mt-2">@Footer</div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Detail { get; set; }
+    [Parameter] public IReadOnlyList<PhoneticAnalyzersApiService.ValidationErrorItem>? Errors { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+}
+
+<!-- Usage Example:
+<ValidationSummary Title="Could not submit" Detail="Please correct the highlighted issues" Errors="myErrors" />
+Where myErrors is List<PhoneticAnalyzersApiService.ValidationErrorItem> from caught ValidationApiException.
+-->

@@ -1,0 +1,100 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{8E2A8F9A-1C6A-4B2E-8F3D-9C4B5A6E7F8A}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PhoneticAnalyzers.IntegrationTests", "tests\PhoneticAnalyzers.IntegrationTests\PhoneticAnalyzers.IntegrationTests.csproj", "{7A8B9C0D-1E2F-3A4B-5C6D-7E8F9A0B1C2D}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SmokeHarness", "tests\SmokeHarness\SmokeHarness.csproj", "{9B0C1D2E-3F4A-5B6C-7D8E-9F0A1B2C3D4E}"
+EndProject
+
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{9F3B9G9B-2D7B-5C3F-9G4E-AD5C6B7F8G9B}"
+EndProject
+
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "infra", "infra", "{AF4CAH4C-3E8C-6D4G-AH5F-BE6D7C8GAH4C}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PhoneticAnalyzers.Domain", "src\PhoneticAnalyzers.Domain\PhoneticAnalyzers.Domain.csproj", "{1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PhoneticAnalyzers.Application", "src\PhoneticAnalyzers.Application\PhoneticAnalyzers.Application.csproj", "{2B3C4D5E-6F7A-8B9C-0D1E-2F3A4B5C6D7E}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PhoneticAnalyzers.Infrastructure", "src\PhoneticAnalyzers.Infrastructure\PhoneticAnalyzers.Infrastructure.csproj", "{3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PhoneticAnalyzers.Functions.Ingestion", "src\PhoneticAnalyzers.Functions.Ingestion\PhoneticAnalyzers.Functions.Ingestion.csproj", "{4D5E6F7A-8B9C-0D1E-2F3A-4B5C6D7E8F9A}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PhoneticAnalyzers.Functions.Search", "src\PhoneticAnalyzers.Functions.Search\PhoneticAnalyzers.Functions.Search.csproj", "{5E6F7A8B-9C0D-1E2F-3A4B-5C6D7E8F9A0B}"
+EndProject
+
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PhoneticAnalyzers.Web", "Web\PhoneticAnalyzers.Web.csproj", "{6F7A8B9C-0D1E-2F3A-4B5C-6D7E8F9A0B1C}"
+EndProject
+
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Web", "Web", "{BG5DBH5D-4F9D-7E5H-BH6G-CF7E8D9HBH5D}"
+EndProject
+
+
+
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B3C4D5E-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B3C4D5E-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B3C4D5E-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B3C4D5E-6F7A-8B9C-0D1E-2F3A4B5C6D7E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4D5E6F7A-8B9C-0D1E-2F3A-4B5C6D7E8F9A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D5E6F7A-8B9C-0D1E-2F3A-4B5C6D7E8F9A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D5E6F7A-8B9C-0D1E-2F3A-4B5C6D7E8F9A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D5E6F7A-8B9C-0D1E-2F3A-4B5C6D7E8F9A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E6F7A8B-9C0D-1E2F-3A4B-5C6D7E8F9A0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E6F7A8B-9C0D-1E2F-3A4B-5C6D7E8F9A0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E6F7A8B-9C0D-1E2F-3A4B-5C6D7E8F9A0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E6F7A8B-9C0D-1E2F-3A4B-5C6D7E8F9A0B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6F7A8B9C-0D1E-2F3A-4B5C-6D7E8F9A0B1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6F7A8B9C-0D1E-2F3A-4B5C-6D7E8F9A0B1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6F7A8B9C-0D1E-2F3A-4B5C-6D7E8F9A0B1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6F7A8B9C-0D1E-2F3A-4B5C-6D7E8F9A0B1C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A8B9C0D-1E2F-3A4B-5C6D-7E8F9A0B1C2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A8B9C0D-1E2F-3A4B-5C6D-7E8F9A0B1C2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A8B9C0D-1E2F-3A4B-5C6D-7E8F9A0B1C2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A8B9C0D-1E2F-3A4B-5C6D-7E8F9A0B1C2D}.Release|Any CPU.Build.0 = Release|Any CPU
+	{9B0C1D2E-3F4A-5B6C-7D8E-9F0A1B2C3D4E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+	{9B0C1D2E-3F4A-5B6C-7D8E-9F0A1B2C3D4E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+	{9B0C1D2E-3F4A-5B6C-7D8E-9F0A1B2C3D4E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	{9B0C1D2E-3F4A-5B6C-7D8E-9F0A1B2C3D4E}.Release|Any CPU.Build.0 = Release|Any CPU
+
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{1A2B3C4D-5E6F-7A8B-9C0D-1E2F3A4B5C6D} = {8E2A8F9A-1C6A-4B2E-8F3D-9C4B5A6E7F8A}
+		{2B3C4D5E-6F7A-8B9C-0D1E-2F3A4B5C6D7E} = {8E2A8F9A-1C6A-4B2E-8F3D-9C4B5A6E7F8A}
+		{3C4D5E6F-7A8B-9C0D-1E2F-3A4B5C6D7E8F} = {8E2A8F9A-1C6A-4B2E-8F3D-9C4B5A6E7F8A}
+		{4D5E6F7A-8B9C-0D1E-2F3A-4B5C6D7E8F9A} = {8E2A8F9A-1C6A-4B2E-8F3D-9C4B5A6E7F8A}
+		{5E6F7A8B-9C0D-1E2F-3A4B-5C6D7E8F9A0B} = {8E2A8F9A-1C6A-4B2E-8F3D-9C4B5A6E7F8A}
+		{6F7A8B9C-0D1E-2F3A-4B5C-6D7E8F9A0B1C} = {BG5DBH5D-4F9D-7E5H-BH6G-CF7E8D9HBH5D}
+        {7A8B9C0D-1E2F-3A4B-5C6D-7E8F9A0B1C2D} = {9F3B9G9B-2D7B-5C3F-9G4E-AD5C6B7F8G9B}
+	{9B0C1D2E-3F4A-5B6C-7D8E-9F0A1B2C3D4E} = {9F3B9G9B-2D7B-5C3F-9G4E-AD5C6B7F8G9B}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {8F9A0B1C-2D3E-4F5A-6B7C-8D9E0F1A2B3C}
+	EndGlobalSection
+EndGlobal

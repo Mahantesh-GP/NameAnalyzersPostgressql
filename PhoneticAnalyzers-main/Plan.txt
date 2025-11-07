@@ -1,0 +1,387 @@
+The solution below describes a fully serverless pipeline that ingests over 1.36 billion names and exposes low‑latency phonetic search. It uses an Azure Functions (isolated .NET 8) ingestion service to compute and store Double Metaphone and Beider–Morse encodings for each name. Data is persisted in a partitioned Azure Database for PostgreSQL with proper indexes and trigram‑based similarity search. A second HTTP API (functions or ASP.NET) normalizes the user’s query, looks up candidates by phonetic keys and uses Postgres’ pg_trgm for typo‑tolerant ranking. The design emphasises reliability, security, high availability and cost optimisation, following Microsoft’s Well‑Architected guidance
+learn.microsoft.com
+learn.microsoft.com
+ and Azure Functions best‑practices
+
+1 Architecture & Components
+1.1 Data ingestion pipeline
+
+Producers (e.g., upstream systems or ETL jobs) push raw name records to Azure Event Hubs or Azure Queue Storage. Event Hubs offers high throughput and at‑least‑once delivery but requires checkpoint handling; Queue storage is simpler but lower throughput.
+
+Azure Function – Ingest (Isolated .NET 8): triggered by each event/queue message. It normalizes the name, generates phonetic keys, expands nicknames, and writes to PostgreSQL. Best‑practice guidelines recommend keeping each function focused and stateless, avoiding long‑running work and implementing retry patterns to handle transient failures
+learn.microsoft.com
+. Connections to external services should be reused via static clients to avoid exhausting connection pools
+learn.microsoft.com
+.
+
+Azure Database for PostgreSQL – Flexible Server: stores normalized names and phonetic codes. The server runs in the same region as the function to minimize latency. Azure’s reliability guidance advises enabling high‑availability with zone‑redundant replicas and geo‑redundant backups
+learn.microsoft.com
+. Security is enhanced by network security groups, private endpoints and Entra ID authentication
+learn.microsoft.com
+.
+
+Search API: a lightweight HTTP function or ASP.NET container that accepts a name query, computes phonetic codes and uses indexed equality plus trigram similarity to return results. Because query traffic (~2.3 M/month, ~20 RPS peak) is moderate, a single small app can handle the load; it can be scaled out if necessary.
+
+1.2 Why Azure Functions (isolated .NET 8)?
+
+The isolated worker model runs the user’s code in a separate process, offering full control over startup, dependency injection and middleware
+learn.microsoft.com
+. It avoids conflicts with host assemblies and allows standard .NET dependency‑injection to register services
+learn.microsoft.com
+. You can configure services such as database clients, phonetic encoders and caches in Program.cs and share them across invocations.
+
+1.3 Phonetic algorithms
+
+Double Metaphone: Lucene.Net’s DoubleMetaphone class implements Lawrence Philips’ algorithm
+lucenenet.apache.org
+. It produces a primary and (optional) alternate code; calling GetDoubleMetaphone(value, alternate: true) returns the alternate code
+lucenenet.apache.org
+. MaxCodeLen controls the length of the returned code; typical values of 4–8 characters suffice.
+
+Beider–Morse: Lucene.Net’s BeiderMorseEncoder encodes names by inferring language, converting to language‑specific phonetics, and then generating pan‑Indo‑European phonetic representations
+lucenenet.apache.org
+. Because names may be hyphenated or include prefixes, the encoder may produce multiple variants separated by a pipe (|)
+lucenenet.apache.org
+. NameType and RuleType control how broadly to search; GENERIC and APPROX yield approximate matches. Applications should split the returned string on | and index each variant separately.
+
+Nickname/alias expansion: optionally map common nicknames (“Jon”→“John”, “Beth”→“Elizabeth”) before encoding. Keep a dictionary in memory or store it in a separate table to maintain flexibility.
+
+2 Database design on PostgreSQL
+2.1 Tables
+
+The ingestion function inserts into a logical table person and a child table person_bm for Beider–Morse variants. Because the dataset contains >1 billion rows, hash partitioning spreads data across multiple child tables to reduce index sizes and hotspots.
+
+-- Parent table for normalized names and Double Metaphone keys
+CREATE TABLE person (
+    id                BIGSERIAL PRIMARY KEY,
+    external_id       VARCHAR(64) UNIQUE,
+    full_name         VARCHAR(200) NOT NULL,
+    normalized_name   VARCHAR(200) NOT NULL,
+    dm_primary        VARCHAR(16) NOT NULL,
+    dm_alternate      VARCHAR(16),
+    first_letter      CHAR(1) GENERATED ALWAYS AS (LEFT(normalized_name,1)) STORED,
+    dm_hash           INT GENERATED ALWAYS AS (ABS(HASH(normalized_name)) % 64) STORED,
+    created_utc       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_utc       TIMESTAMP WITH TIME ZONE
+) PARTITION BY HASH (dm_hash);
+
+-- Create 64 hash partitions to distribute rows
+DO $$
+BEGIN
+  FOR i IN 0..63 LOOP
+    EXECUTE format('CREATE TABLE person_p%s PARTITION OF person FOR VALUES WITH (MODULUS 64, REMAINDER %s);', i, i);
+  END LOOP;
+END$$;
+
+-- Table for Beider–Morse variants
+CREATE TABLE person_bm (
+    person_id BIGINT NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    bm_code   VARCHAR(128) NOT NULL,
+    first_letter CHAR(1) GENERATED ALWAYS AS (LEFT(bm_code,1)) STORED,
+    PRIMARY KEY (person_id, bm_code)
+) PARTITION BY HASH (first_letter);
+
+
+Indexing and similarity
+
+Equality lookups: B‑tree indexes on (dm_primary, first_letter) and (dm_alternate, first_letter) allow fast retrieval of records by Double Metaphone keys. Another B‑tree index on (bm_code, first_letter) supports Beider–Morse variants.
+
+Typo tolerance: PostgreSQL’s pg_trgm extension provides trigram similarity functions and % operator
+postgresql.org
+. Create a GIN index on normalized_name with gin_trgm_ops:
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX idx_person_normname_trgm ON person USING GIN (normalized_name gin_trgm_ops);
+
+
+This index accelerates queries using similarity(normalized_name, :q) or the % operator. A typical query uses equality filters to narrow candidates and then a trigram similarity filter and ordering
+postgresql.org
+.
+
+2.2 High‑availability and security
+
+Microsoft recommends enabling zone‑redundant high availability; the service automatically provisions a standby replica and manages fail‑over
+learn.microsoft.com
+. Use geo‑redundant backups or cross‑region read replicas for disaster recovery
+learn.microsoft.com
+. Security guidance advises strict identity management, network segmentation and private endpoints
+learn.microsoft.com
+. Enable row‑level security and, if required, customer‑managed keys for encryption
+learn.microsoft.com
+. Store secrets (connection strings) in Azure Key Vault and configure the function app to access them using a managed identity.
+
+3 Azure Function implementation (ingestion)
+
+Below is a simplified code skeleton for the ingestion function (Isolated .NET 8). It demonstrates best practices: static clients, dependency injection, asynchronous I/O, retry handling, and idempotent upsert.
+
+// Program.cs
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Configuration;
+using Lucene.Net.Analysis.Phonetic.Language;
+using Lucene.Net.Analysis.Phonetic.Language.Bm;
+using Npgsql;
+using Dapper;
+
+var host = new HostBuilder()
+    .ConfigureFunctionsWorkerDefaults()
+    .ConfigureServices(services =>
+    {
+        // Register phonetic encoders as singletons
+        services.AddSingleton<DoubleMetaphone>(sp => new DoubleMetaphone { MaxCodeLen = 8 });
+        services.AddSingleton<BeiderMorseEncoder>(sp => new BeiderMorseEncoder {
+            NameType = NameType.GENERIC,
+            RuleType = RuleType.APPROX,
+            IsConcat = true
+        });
+        // Register Npgsql connection factory as singleton
+        services.AddSingleton<NpgsqlDataSource>(sp =>
+        {
+            var connString = Environment.GetEnvironmentVariable("PgConnection")!;
+            return NpgsqlDataSource.Create(connString);
+        });
+    })
+    .Build();
+
+host.Run();
+
+// NameIngestFunction.cs
+using System.Data;
+using System.Text.RegularExpressions;
+using Dapper;
+using Lucene.Net.Analysis.Phonetic.Language;
+using Lucene.Net.Analysis.Phonetic.Language.Bm;
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+
+public class NameIngestFunction
+{
+    private readonly DoubleMetaphone _dm;
+    private readonly BeiderMorseEncoder _bm;
+    private readonly NpgsqlDataSource _pg;
+    private readonly ILogger<NameIngestFunction> _logger;
+
+    public NameIngestFunction(DoubleMetaphone dm, BeiderMorseEncoder bm, NpgsqlDataSource pg, ILogger<NameIngestFunction> logger)
+    {
+        _dm = dm;
+        _bm = bm;
+        _pg = pg;
+        _logger = logger;
+    }
+
+    [Function("NameIngest")]    // trigger can be QueueTrigger or EventHubTrigger
+    public async Task RunAsync([QueueTrigger("names-in")] NameRecord msg)
+    {
+        try
+        {
+            string normalized = Normalize(msg.FullName);
+
+            // Double Metaphone codes
+            string dmPrimary = _dm.GetDoubleMetaphone(normalized);
+            string dmAlternate = _dm.GetDoubleMetaphone(normalized, true);
+
+            // Beider–Morse variants (limit to first 16)
+            var bmCodes = _bm.Encode(normalized)
+                               .Split('|', StringSplitOptions.RemoveEmptyEntries)
+                               .Select(c => c.Trim().ToUpperInvariant())
+                               .Distinct()
+                               .Take(16)
+                               .ToArray();
+
+            using var conn = await _pg.OpenConnectionAsync();
+            using var tx = await conn.BeginTransactionAsync();
+
+            // Upsert person record; idempotent on external_id
+            long personId = await conn.ExecuteScalarAsync<long>(@"
+                INSERT INTO person(external_id, full_name, normalized_name, dm_primary, dm_alternate)
+                VALUES(@ExternalId, @FullName, @Normalized, @DmP, @DmA)
+                ON CONFLICT (external_id) DO UPDATE
+                  SET full_name = EXCLUDED.full_name,
+                      normalized_name = EXCLUDED.normalized_name,
+                      dm_primary = EXCLUDED.dm_primary,
+                      dm_alternate = EXCLUDED.dm_alternate,
+                      updated_utc = NOW()
+                RETURNING id;", new
+            {
+                msg.ExternalId,
+                msg.FullName,
+                Normalized = normalized,
+                DmP = dmPrimary,
+                DmA = dmAlternate
+            }, tx);
+
+            // Delete old variants and insert new ones
+            await conn.ExecuteAsync("DELETE FROM person_bm WHERE person_id = @Id;", new { Id = personId }, tx);
+            var bmRows = bmCodes.Select(code => new { PersonId = personId, BmCode = code });
+            await conn.ExecuteAsync("INSERT INTO person_bm(person_id, bm_code) VALUES(@PersonId, @BmCode);", bmRows, tx);
+
+            await tx.CommitAsync();
+            _logger.LogInformation($"Processed {msg.FullName}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing message {ExternalId}", msg.ExternalId);
+            throw; // Let the runtime handle retries
+        }
+    }
+
+    private static string Normalize(string name)
+    {
+        var s = name?.ToUpperInvariant() ?? "";
+        s = Regex.Replace(s, "[^\p{L}\p{Nd} '\-]", " "); // keep letters, digits, space, hyphen, apostrophe
+        s = Regex.Replace(s, "\s+", " ").Trim();
+        return s;
+    }
+}
+
+public record NameRecord(string ExternalId, string FullName);
+
+
+Key practices
+
+Use static or singleton clients. Azure guidance recommends reusing service clients rather than creating new ones per invocation
+learn.microsoft.com
+. The Npgsql data source above is registered as a singleton. ADO.NET pools connections automatically
+learn.microsoft.com
+; avoid opening more connections than necessary.
+
+Keep functions stateless and short; offload heavy work to dedicated compute. Use asynchronous I/O to prevent thread blocking. Functions should avoid long‑running loops
+learn.microsoft.com
+.
+
+Implement retry policies: Event Hub triggers support built‑in retry policies
+learn.microsoft.com
+. You can also wrap database operations in retry logic (e.g., Polly) for transient network errors.
+
+Ensure idempotency. Because Event Hubs provides at‑least‑once delivery
+learn.microsoft.com
+, the function may process the same event twice. Use ON CONFLICT (or UPSERT) to update existing rows and avoid duplicates.
+
+Avoid expensive per‑invocation initialization. For example, compile your nickname dictionary once and cache it.
+
+4 Search API design
+
+A separate component handles search requests. For each user query:
+
+Normalize the input the same way as ingest.
+
+Compute Double Metaphone and Beider–Morse variants (same encoders and dictionary).
+
+Query the database using equality filters on phonetic keys and first_letter to restrict candidates. Example using Dapper:
+
+SELECT p.id, p.full_name, p.normalized_name
+FROM person p
+LEFT JOIN person_bm b ON b.person_id = p.id
+WHERE (p.dm_primary   = @DmPrimary AND p.first_letter = @FirstLetter)
+   OR (p.dm_alternate = @DmAlternate AND p.first_letter = @FirstLetter)
+   OR (b.bm_code      = ANY(@BmCodes) AND b.first_letter = @FirstLetter)
+LIMIT 500;
+
+
+Typo tolerance / ranking: apply similarity() or % operator from pg_trgm to filter and order the candidates. For example:
+
+SELECT id, full_name,
+       similarity(normalized_name, @Query) AS score
+FROM (
+    -- candidate subquery as above
+) c
+WHERE normalized_name % @Query
+ORDER BY score DESC, full_name
+LIMIT 100;
+
+
+The % operator returns true if two strings are similar above the similarity_threshold
+postgresql.org
+. Setting pg_trgm.similarity_threshold (default 0.3) tunes sensitivity
+postgresql.org
+. For exact‐phrase search you can use LIKE/ILIKE with trigram index support
+postgresql.org
+.
+5. Jaro–Winkler fallback (optional): After the DB narrows to hundreds of candidates, compute a Jaro–Winkler or Damerau‑Levenshtein score in the application and rank the top results. This step remains cheap because candidate sets are small.
+
+5 Operational considerations
+5.1 Hosting and scaling
+
+Plan selection: The Flex Consumption or Premium plan is recommended for dynamic scaling
+learn.microsoft.com
+. Premium plan reduces cold‑start times and allows VNET integration
+learn.microsoft.com
+; Flex Consumption is pay‑as‑you‑go. Avoid the basic consumption plan for heavy workloads.
+
+Concurrency: Each function instance can process multiple events concurrently; concurrency shares CPU and connections
+learn.microsoft.com
+. Configure concurrency in host.json or rely on dynamic concurrency
+learn.microsoft.com
+. For CPU‑bound operations (encoding is light) you may set a small concurrency value; for I/O‑bound operations, higher concurrency works.
+
+Connection management: Each function instance has its own connection limit. Reuse static clients and avoid opening more connections than necessary
+learn.microsoft.com
+. Store connection strings in local.settings.json and in the Function App’s configuration (Application Settings)
+learn.microsoft.com
+.
+
+Event Hub processing: Understand Event Hub semantics: the pointer (checkpoint) is advanced after processing a batch; unhandled exceptions may cause events to be lost or processed twice
+learn.microsoft.com
+. Implement try/catch blocks and set retry policies
+learn.microsoft.com
+. Functions provide at‑least‑once guarantees, so make your operations idempotent
+learn.microsoft.com
+.
+
+Circuit‑breaker pattern: For downstream failures (e.g., Postgres offline), implement a circuit breaker. Azure Functions guidance suggests storing shared state and pausing the trigger when downstream dependencies are unhealthy
+learn.microsoft.com
+.
+
+5.2 DevOps and deployment
+
+Infrastructure‑as‑code (IaC): Use Bicep or Terraform to provision Event Hubs, Storage, PostgreSQL server/replicas, VNETs, Private Link, Key Vault and Function Apps.
+
+CI/CD: Use GitHub Actions or Azure DevOps to build .NET functions, run unit tests, and deploy using the run‑from‑package method. Running from a package reduces deployment downtime and avoids file‑copy locking issues
+learn.microsoft.com
+.
+
+Secrets & configuration: Place PostgreSQL connection strings and other secrets in Azure Key Vault. Use DefaultAzureCredential or managed identities to access secrets. Avoid hard‑coding secrets in code.
+
+Monitoring: Enable Application Insights. It captures metrics and logs for each function invocation. Remove the obsolete AzureWebJobsDashboard setting to improve performance
+learn.microsoft.com
+. Set up alerts for execution failures, queue length growth and database CPU/memory usage.
+
+5.3 Cost optimisation
+
+Use the memory‑optimized tier for PostgreSQL only if large caches are needed; otherwise the general‑purpose tier may suffice. Use reserved instances and monitor usage to scale down when demand is lower
+learn.microsoft.com
+.
+
+Keep the phonetic tables narrow (short strings); limit the number of Beider–Morse variants stored (e.g., top 16) to control index size.
+
+Deploy resources in the same region to minimise data‑transfer cost
+learn.microsoft.com
+.
+
+6 Putting it all together
+
+Choose the PostgreSQL Flexible Server tier and enable HA & geo‑redundant backups
+learn.microsoft.com
+.
+
+Provision Event Hubs or Queue storage, Key Vault and a Function App (Flex or Premium) with VNET integration and Private Link to PostgreSQL
+learn.microsoft.com
+.
+
+Deploy the ingestion function using the isolated worker model. Register the phonetic encoders and Postgres connection factory as singletons. Use idempotent upsert logic and handle exceptions with retries.
+
+Load initial data by pushing batches to the queue/hub; scale out ingestion by increasing throughput on Event Hubs and adjusting concurrency.
+
+Expose a search API that computes phonetic codes, queries Postgres using equality and trigram similarity and returns ranked results.
+
+Monitor the system; tune partitioning and indexes as data volume grows. Add read replicas for search queries if necessary.
+
+Outcome: The proposed solution offers a scalable and cost‑effective alternative to external search engines. Phonetic encoding at ingest narrows candidate sets; PostgreSQL’s trigram extension provides typo tolerance and ranking. The architecture follows Azure’s reliability and security guidance
+learn.microsoft.com
+learn.microsoft.com
+ and Azure Functions best‑practices
+learn.microsoft.com
+, ensuring that both ingestion and search remain resilient, secure and performant under real‑world workloads.
+
+In short, the solution uses serverless Azure Functions (isolated .NET 8) to ingest names, compute Double Metaphone and Beider–Morse encodings, and store them in a partitioned PostgreSQL database. A separate search API normalizes queries, does indexed equality lookups on phonetic keys, and uses PostgreSQL’s pg_trgm extension for typo-tolerant ranking. The design follows Azure’s high-availability, security, and cost-optimization guidelines

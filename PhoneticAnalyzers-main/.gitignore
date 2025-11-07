@@ -1,0 +1,71 @@
+# Ignore build artifacts
+bin/
+obj/
+out/
+build/
+
+# Ignore IDE files
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore package management
+packages/
+node_modules/
+*.lock
+
+# Ignore test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Ignore Azure Functions
+local.settings.json
+.azure/
+.func/
+
+# Ignore secrets and environment files
+.env
+.env.local
+.env.production
+appsettings.*.json
+!appsettings.json
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore temporary files
+*.tmp
+*.temp
+*.cache
+
+# Ignore database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Ignore deployment artifacts
+publish/
+*.zip
+*.nupkg
+
+# Ignore Bicep compiled files
+*.json
+!host.json
+!package.json
+!tsconfig.json
+!local.settings.example.json
+
+# Keep example configuration files
+!*example*
+!*template*
+!*sample*
