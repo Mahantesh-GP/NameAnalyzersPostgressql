@@ -115,6 +115,10 @@ public class SearchFunctions
                     externalId = match.ExternalId,
                     fullName = match.FullName,
                     normalizedName = match.NormalizedName,
+                    county = match.County,
+                    countyId = match.CountyId,
+                    countyName = match.CountyName,
+                    flag = match.Flag.ToString(),
                     similarityScore = match.SimilarityScore,
                     matchType = match.MatchType.ToString(),
                     matchMetadata = match.MatchMetadata,
@@ -206,6 +210,10 @@ public class SearchFunctions
                             personId = match.PersonId,
                             externalId = match.ExternalId,
                             fullName = match.FullName,
+                            county = match.County,
+                            countyId = match.CountyId,
+                            countyName = match.CountyName,
+                            flag = match.Flag.ToString(),
                             similarityScore = match.SimilarityScore
                         })
                     });

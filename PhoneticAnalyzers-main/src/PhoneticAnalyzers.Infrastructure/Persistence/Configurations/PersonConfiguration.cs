@@ -51,6 +51,30 @@ public sealed class PersonConfiguration : IEntityTypeConfiguration<Person>
                 normalizedName => normalizedName.Value,
                 value => NormalizedName.Create(value));
 
+        // County fields
+        builder.Property(p => p.County)
+            .HasColumnName("county")
+            .HasMaxLength(100)
+            .IsRequired();
+
+        builder.Property(p => p.CountyId)
+            .HasColumnName("county_id")
+            .IsRequired();
+
+        builder.Property(p => p.CountyName)
+            .HasColumnName("county_name")
+            .HasMaxLength(150)
+            .IsRequired();
+
+        // Record type flag
+        builder.Property(p => p.Flag)
+            .HasColumnName("flag")
+            .HasMaxLength(1)
+            .IsRequired()
+            .HasConversion(
+                flag => (char)flag,
+                value => (RecordTypeFlag)value);
+
         // Double Metaphone codes
         builder.Property(p => p.PrimaryDoubleMetaphone)
             .HasColumnName("dm_primary")
@@ -105,6 +129,16 @@ public sealed class PersonConfiguration : IEntityTypeConfiguration<Person>
             .HasDatabaseName("ix_person_normalized_name_gin")
             .HasMethod("gin")
             .HasOperators("gin_trgm_ops");
+
+        // Indexes for county-based filtering
+        builder.HasIndex(p => p.CountyId)
+            .HasDatabaseName("ix_person_county_id");
+
+        builder.HasIndex(p => p.Flag)
+            .HasDatabaseName("ix_person_flag");
+
+        builder.HasIndex(p => new { p.CountyId, p.Flag })
+            .HasDatabaseName("ix_person_county_flag");
 
         // Partition configuration
         builder.UseTphMappingStrategy();

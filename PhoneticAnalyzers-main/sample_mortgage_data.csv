@@ -1,0 +1,11 @@
+ExternalId,FullName,County,CountyId,CountyName,Flag
+MTG001,John Smith,Miami-Dade,001,Miami-Dade County,I
+MTG002,Jane Johnson Corporation,Miami-Dade,001,Miami-Dade County,B
+MTG003,Robert Brown,Broward,002,Broward County,I
+MTG004,Sarah Davis LLC,Broward,002,Broward County,B
+MTG005,Michael Wilson,Palm Beach,003,Palm Beach County,I
+MTG006,Corporate Holdings Inc,Palm Beach,003,Palm Beach County,B
+MTG007,Lisa Anderson,Orange,004,Orange County,I
+MTG008,Business Enterprises,Orange,004,Orange County,B
+MTG009,David Thompson,Hillsborough,005,Hillsborough County,I
+MTG010,Unknown Entity,Duval,006,Duval County,U

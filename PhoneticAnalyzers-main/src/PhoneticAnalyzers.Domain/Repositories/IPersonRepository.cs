@@ -61,6 +61,16 @@ public interface IPersonRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Performs a high-performance bulk upsert operation optimized for millions of records
+    /// </summary>
+    /// <param name="persons">The persons to upsert</param>
+    /// <param name="cancellationToken">The cancellation token</param>
+    /// <returns>The bulk upsert result with statistics</returns>
+    Task<BulkUpsertResult> BulkUpsertAsync(
+        IEnumerable<Person> persons,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets the total count of persons in the repository
     /// </summary>
     /// <param name="cancellationToken">The cancellation token</param>
@@ -224,4 +234,25 @@ public enum PhoneticMatchType
     /// Match via trigram similarity
     /// </summary>
     TrigramSimilarity
+}
+
+/// <summary>
+/// Result from a bulk upsert operation
+/// </summary>
+public sealed class BulkUpsertResult
+{
+    /// <summary>
+    /// Gets the number of records inserted
+    /// </summary>
+    public int Inserted { get; init; }
+
+    /// <summary>
+    /// Gets the number of records updated
+    /// </summary>
+    public int Updated { get; init; }
+
+    /// <summary>
+    /// Gets the total number of records processed
+    /// </summary>
+    public int Total => Inserted + Updated;
 }

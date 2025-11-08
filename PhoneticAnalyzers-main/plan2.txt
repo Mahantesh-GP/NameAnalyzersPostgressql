@@ -1,0 +1,117 @@
+The further plan is to enhance this project with below features: This will be AI powered search.
+
+For multilingual nicknames/variants with LLMs, the best balance of recall, latency, and cost is a hybrid approach:
+
+Precompute most variants at ingest/batch time (LLM + rules + curated lists), store them.
+
+Use deterministic, cheap expansions at query time (rules, dictionaries, phonetics, transliteration).
+
+Never call the LLM on every user query unless you miss and then cache the result.
+
+Here’s the game plan, step-by-step, with just one small question for you at the end.
+
+1) Normalize first (deterministic)
+
+Lowercase, strip punctuation/diacritics.
+
+Standardize tokens: st, st. → saint; mt, mt. → mount; drop honorifics (mr, mrs, dr).
+
+Transliterate non-Latin (ICU): “Алексей” → “Aleksei”.
+
+(This alone handles “St Thomas” ↔ “Saint Thomas”.)
+
+2) Curated + rule-based expansions (no LLM)
+
+A NicknameMap table by locale: Elizabeth → {Liz, Beth, Eliza, Liza, …}, Alejandro → {Alex, Jano, …}, etc.
+
+Abbreviations & common spellings: Karthik ↔ Karthick, Muhammad ↔ Mohammad.
+
+Deterministic variants for spaces/hyphens/apostrophes: O’Connor ↔ OConnor, Jean-Luc ↔ Jeanluc.
+
+3) LLM-assisted batch enrichment (offline)
+
+Run a scheduled job (Azure Function/Worker) that:
+
+Pulls new canonical names not yet enriched (or those with low recall in logs).
+
+Prompts the LLM to return strict JSON with:
+
+nicknames, diminutives, anglicizations, transliterations, gendered/locale variants.
+
+Each variant tagged with locale, script, confidence, source="llm".
+
+Validate & dedupe (phonetic match + Levenshtein), cap to N variants (e.g., 20).
+
+Insert into NameAlias table with (name_id, alias, alias_type, locale, script, source, confidence, created_on).
+
+This gives you wide coverage (e.g., “Elizabeth” → “Liz, Beth, Eliza, Isabel (ES), Elisabet (SV)…”), but done once, not per query.
+
+4) Storage sketch (minimal)
+
+PersonName(id, canonical_name, locale_hint, script_hint, normalized_name, dm_code, bm_code)
+
+NameAlias(id, person_id, alias, alias_type, locale, script, source, confidence, normalized_alias, dm_code, bm_code)
+
+Indexes:
+
+btree(normalized_alias), gin(normalized_alias gin_trgm_ops), btree(dm_code), btree(bm_code)
+
+Optional: gin(to_tsvector('simple', normalized_alias))
+
+5) Query flow (fast path)
+
+Normalize input; expand st.→saint, etc.
+
+Pull aliases from NameAlias (same person_id universe) + NicknameMap rows.
+
+Build a limited variant set (e.g., ≤ 32 terms) and search via:
+
+Exact/ILIKE on normalized_name/alias
+
+pg_trgm similarity
+
+Phonetic codes (DM/BM columns)
+
+Score & rank: exact > alias(nickname) > transliteration > phonetic > fuzzy.
+
+If recall is poor and no cache hit for this input → optional LLM fallback once, write-through to NameAliasCache with TTL/digest so future queries are fast.
+
+6) Multilingual specifics
+
+Always create Latin transliterations as a bridge plus keep original script variants.
+
+Store locale/script on aliases; during query, prioritize the user’s market (e.g., en-IN, es-US) but don’t exclude others—just weight lower.
+
+7) Cost & latency
+
+No LLM on hot path ⇒ predictable P95.
+
+Batch jobs amortize cost; you can throttle tokens and run nightly/weekly.
+
+Observability: log “missed then LLM-hit” cases to measure lift.
+
+8) Example tight LLM prompt (batch job)
+
+Use JSON mode / function-call style so you can try/catch parse errors.
+
+You are generating multilingual name variants. Output STRICT JSON only:
+{
+  "canonical": "<input>",
+  "variants": [
+    { "alias": "...", "alias_type": "nickname|diminutive|anglicization|transliteration|spelling",
+      "locale": "en|es|hi|...", "script": "Latn|Cyrl|Deva|...", "confidence": 0.0-1.0 }
+  ]
+}
+Rules:
+- No surnames; first-name equivalents only unless input is a place/institution.
+- Include common abbreviations (e.g., Saint ↔ St) and culturally typical nicknames.
+- Avoid rare or archaic forms (<0.3 confidence).
+Input: "Elizabeth"
+
+9) Quick checks to keep quality high
+
+Human-in-the-loop review for low-confidence variants.
+
+Denylist (e.g., offensive words).
+
+A/B tests on recall/precision; track false-positive rate after adding variants.

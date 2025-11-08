@@ -26,6 +26,24 @@ public sealed class Person : AggregateRoot
     public NormalizedName NormalizedName { get; private set; }
 
     /// <summary>
+    /// Gets the county name
+    /// </summary>
+    public string County { get; private set; }
+
+    /// <summary>
+    /// Gets the county identifier
+    /// </summary>
+    public int CountyId { get; private set; }
+
+    /// <summary>
+    /// Gets the county display name
+    /// </summary>
+    public string CountyName { get; private set; }
+
+    /// <summary>
+    /// Gets the record type flag (I=Individual, B=Business, U=Unknown)
+    /// </summary>
+        public RecordTypeFlag Flag { get; private set; } = RecordTypeFlag.Unknown;    /// <summary>
     /// Gets the primary Double Metaphone code
     /// </summary>
     public PhoneticCode? PrimaryDoubleMetaphone { get; private set; }
@@ -58,6 +76,9 @@ public sealed class Person : AggregateRoot
         ExternalId = null!;
         FullName = string.Empty;
         NormalizedName = null!;
+        County = string.Empty;
+        CountyName = string.Empty;
+        Flag = RecordTypeFlag.Unknown;
     }
 
     /// <summary>
@@ -65,6 +86,10 @@ public sealed class Person : AggregateRoot
     /// </summary>
     /// <param name="externalId">The external identifier</param>
     /// <param name="fullName">The full name</param>
+    /// <param name="county">The county</param>
+    /// <param name="countyId">The county identifier</param>
+    /// <param name="countyName">The county display name</param>
+    /// <param name="flag">The record type flag</param>
     /// <param name="primaryDoubleMetaphone">The primary Double Metaphone code</param>
     /// <param name="alternateDoubleMetaphone">The alternate Double Metaphone code</param>
     /// <param name="beiderMorseCodes">The Beider-Morse phonetic codes</param>
@@ -72,12 +97,22 @@ public sealed class Person : AggregateRoot
     public static Person Create(
         ExternalId externalId,
         string fullName,
+        string county,
+        int countyId,
+        string countyName,
+        RecordTypeFlag flag,
         PhoneticCode? primaryDoubleMetaphone = null,
         PhoneticCode? alternateDoubleMetaphone = null,
         IEnumerable<PhoneticCode>? beiderMorseCodes = null)
     {
         if (string.IsNullOrWhiteSpace(fullName))
             throw new ArgumentException("Full name cannot be null or empty", nameof(fullName));
+        
+        if (string.IsNullOrWhiteSpace(county))
+            throw new ArgumentException("County cannot be null or empty", nameof(county));
+        
+        if (string.IsNullOrWhiteSpace(countyName))
+            throw new ArgumentException("County name cannot be null or empty", nameof(countyName));
 
         var normalizedName = NormalizedName.Create(fullName);
         
@@ -86,6 +121,10 @@ public sealed class Person : AggregateRoot
             ExternalId = externalId,
             FullName = fullName.Trim(),
             NormalizedName = normalizedName,
+            County = county.Trim(),
+            CountyId = countyId,
+            CountyName = countyName.Trim(),
+            Flag = flag,
             PrimaryDoubleMetaphone = primaryDoubleMetaphone,
             AlternateDoubleMetaphone = alternateDoubleMetaphone,
             PartitionHash = CalculatePartitionHash(normalizedName)
@@ -107,17 +146,31 @@ public sealed class Person : AggregateRoot
     /// Updates the person's information
     /// </summary>
     /// <param name="fullName">The updated full name</param>
+    /// <param name="county">The updated county</param>
+    /// <param name="countyId">The updated county identifier</param>
+    /// <param name="countyName">The updated county display name</param>
+    /// <param name="flag">The updated record type flag</param>
     /// <param name="primaryDoubleMetaphone">The updated primary Double Metaphone code</param>
     /// <param name="alternateDoubleMetaphone">The updated alternate Double Metaphone code</param>
     /// <param name="beiderMorseCodes">The updated Beider-Morse phonetic codes</param>
     public void Update(
         string fullName,
+        string county,
+        int countyId,
+        string countyName,
+        RecordTypeFlag flag,
         PhoneticCode? primaryDoubleMetaphone = null,
         PhoneticCode? alternateDoubleMetaphone = null,
         IEnumerable<PhoneticCode>? beiderMorseCodes = null)
     {
         if (string.IsNullOrWhiteSpace(fullName))
             throw new ArgumentException("Full name cannot be null or empty", nameof(fullName));
+        
+        if (string.IsNullOrWhiteSpace(county))
+            throw new ArgumentException("County cannot be null or empty", nameof(county));
+        
+        if (string.IsNullOrWhiteSpace(countyName))
+            throw new ArgumentException("County name cannot be null or empty", nameof(countyName));
 
         var wasUpdated = false;
 
@@ -126,6 +179,30 @@ public sealed class Person : AggregateRoot
             FullName = fullName.Trim();
             NormalizedName = NormalizedName.Create(fullName);
             PartitionHash = CalculatePartitionHash(NormalizedName);
+            wasUpdated = true;
+        }
+
+        if (County != county.Trim())
+        {
+            County = county.Trim();
+            wasUpdated = true;
+        }
+
+        if (CountyId != countyId)
+        {
+            CountyId = countyId;
+            wasUpdated = true;
+        }
+
+        if (CountyName != countyName.Trim())
+        {
+            CountyName = countyName.Trim();
+            wasUpdated = true;
+        }
+
+        if (Flag != flag)
+        {
+            Flag = flag;
             wasUpdated = true;
         }
 

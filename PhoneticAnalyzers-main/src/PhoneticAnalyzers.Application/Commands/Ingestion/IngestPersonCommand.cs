@@ -20,6 +20,26 @@ public sealed class IngestPersonCommand : IRequest<IngestPersonCommandResult>
     public string FullName { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets the county name
+    /// </summary>
+    public string County { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets the county identifier
+    /// </summary>
+    public int CountyId { get; set; }
+
+    /// <summary>
+    /// Gets the county display name
+    /// </summary>
+    public string CountyName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets the record type flag (I=Individual, B=Business, U=Unknown)
+    /// </summary>
+    public RecordTypeFlag Flag { get; set; } = RecordTypeFlag.Unknown;
+
+    /// <summary>
     /// Gets whether to perform nickname expansion during processing
     /// </summary>
     public bool ExpandNicknames { get; set; } = true;
@@ -132,6 +152,26 @@ public sealed class PersonBatchItem
     /// Gets the full name
     /// </summary>
     public string FullName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the county name
+    /// </summary>
+    public string County { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the county identifier
+    /// </summary>
+    public int CountyId { get; init; }
+
+    /// <summary>
+    /// Gets the county display name
+    /// </summary>
+    public string CountyName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the record type flag (I=Individual, B=Business, U=Unknown)
+    /// </summary>
+    public RecordTypeFlag Flag { get; init; } = RecordTypeFlag.Unknown;
 
     /// <summary>
     /// Gets whether to expand nicknames for this item

@@ -1,0 +1,31 @@
+ExternalId,FullName,County,CountyId,CountyName,Flag
+MTG001,John Michael Smith,Miami-Dade,1,Miami-Dade County,I
+MTG002,Smithson Real Estate LLC,Miami-Dade,1,Miami-Dade County,B
+MTG003,Maria Elena Garcia,Broward,2,Broward County,I
+MTG004,Garcia Holdings Corporation,Broward,2,Broward County,B
+MTG005,Robert James Wilson,Palm Beach,3,Palm Beach County,I
+MTG006,Wilson Development Group,Palm Beach,3,Palm Beach County,B
+MTG007,Catherine Johnson,Orange,4,Orange County,I
+MTG008,Johnson & Associates Inc,Orange,4,Orange County,B
+MTG009,David Alexander Brown,Hillsborough,5,Hillsborough County,I
+MTG010,Brown Investment Partners,Hillsborough,5,Hillsborough County,B
+MTG011,Jennifer Marie Davis,Duval,6,Duval County,I
+MTG012,Davis Property Management,Duval,6,Duval County,B
+MTG013,Michael John Anderson,Miami-Dade,1,Miami-Dade County,I
+MTG014,Anderson Financial Services,Miami-Dade,1,Miami-Dade County,B
+MTG015,Sarah Elizabeth Martinez,Broward,2,Broward County,I
+MTG016,Martinez Consulting LLC,Broward,2,Broward County,B
+MTG017,James Robert Thompson,Palm Beach,3,Palm Beach County,I
+MTG018,Thompson Construction Corp,Palm Beach,3,Palm Beach County,B
+MTG019,Lisa Ann Taylor,Orange,4,Orange County,I
+MTG020,Taylor Business Solutions,Orange,4,Orange County,B
+MTG021,Daniel Paul Rodriguez,Hillsborough,5,Hillsborough County,I
+MTG022,Rodriguez Realty Group,Hillsborough,5,Hillsborough County,B
+MTG023,Amanda Rose White,Duval,6,Duval County,I
+MTG024,White Property Investments,Duval,6,Duval County,B
+MTG025,Christopher Lee Miller,Miami-Dade,1,Miami-Dade County,I
+MTG026,Miller Holdings International,Miami-Dade,1,Miami-Dade County,B
+MTG027,Unknown Entity Alpha,Miami-Dade,1,Miami-Dade County,U
+MTG028,Unknown Entity Beta,Broward,2,Broward County,U
+MTG029,Unknown Entity Gamma,Palm Beach,3,Palm Beach County,U
+MTG030,Unknown Entity Delta,Orange,4,Orange County,U

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using PhoneticAnalyzers.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using PhoneticAnalyzers.Infrastructure.Persistence;
 namespace PhoneticAnalyzers.Infrastructure.Migrations
 {
     [DbContext(typeof(PhoneticAnalyzersDbContext))]
-    partial class PhoneticAnalyzersDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251107183626_MortgageSolutionUpdate")]
+    partial class MortgageSolutionUpdate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

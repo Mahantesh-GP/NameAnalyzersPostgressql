@@ -58,6 +58,10 @@ public sealed class IngestPersonCommandHandler : IRequestHandler<IngestPersonCom
             person = existingPerson;
             person.Update(
                 request.FullName,
+                request.County,
+                request.CountyId,
+                request.CountyName,
+                request.Flag,
                 phoneticResult.PrimaryDoubleMetaphone,
                 phoneticResult.AlternateDoubleMetaphone,
                 phoneticResult.BeiderMorseCodes);
@@ -73,6 +77,10 @@ public sealed class IngestPersonCommandHandler : IRequestHandler<IngestPersonCom
             person = Person.Create(
                 externalId,
                 request.FullName,
+                request.County,
+                request.CountyId,
+                request.CountyName,
+                request.Flag,
                 phoneticResult.PrimaryDoubleMetaphone,
                 phoneticResult.AlternateDoubleMetaphone,
                 phoneticResult.BeiderMorseCodes);

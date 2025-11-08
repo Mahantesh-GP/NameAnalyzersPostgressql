@@ -118,9 +118,9 @@ public class PhoneticAnalyzersApiService
     }
 
     /// <summary>
-    /// Search for persons using phonetic matching. Attempts advanced search first (SearchApi). Falls back to simple search (IngestionApi) if the advanced service is unavailable.
+    /// Search for persons using phonetic matching with mortgage-specific filters. Attempts advanced search first (SearchApi). Falls back to simple search (IngestionApi) if the advanced service is unavailable.
     /// </summary>
-    public async Task<SearchResult?> SearchPersonsAsync(string name, int maxResults = 10) 
+    public async Task<SearchResult?> SearchPersonsAsync(string name, int maxResults = 10, int? countyId = null, string? recordType = null) 
     {
         try
         {
@@ -132,7 +132,9 @@ public class PhoneticAnalyzersApiService
                 minSimilarityThreshold = 0.3,
                 includeTrigramSimilarity = true,
                 expandNicknames = true,
-                includeMatchDetails = true
+                includeMatchDetails = true,
+                countyId = countyId,
+                recordType = recordType
             };
 
             var httpClient = _httpClientFactory.CreateClient("SearchApi");
@@ -167,7 +169,10 @@ public class PhoneticAnalyzersApiService
                 // Fallback to simple search on ingestion API
                 _logger.LogWarning(hre, "Advanced search API unreachable. Falling back to simple search.");
                 var ingestionClient = _httpClientFactory.CreateClient("IngestionApi");
-                var fallbackResponse = await ingestionClient.GetAsync($"/api/search?name={Uri.EscapeDataString(name)}&maxResults={maxResults}");
+                var queryParams = $"name={Uri.EscapeDataString(name)}&maxResults={maxResults}";
+                if (countyId.HasValue) queryParams += $"&countyId={countyId.Value}";
+                if (!string.IsNullOrEmpty(recordType)) queryParams += $"&recordType={Uri.EscapeDataString(recordType)}";
+                var fallbackResponse = await ingestionClient.GetAsync($"/api/search?{queryParams}");
                 if (!fallbackResponse.IsSuccessStatusCode)
                 {
                     if (fallbackResponse.StatusCode == System.Net.HttpStatusCode.BadRequest)
@@ -211,6 +216,10 @@ public class PhoneticAnalyzersApiService
                 ExternalId = r.ExternalId ?? string.Empty,
                 FullName = r.FullName ?? string.Empty,
                 NormalizedName = r.NormalizedName ?? string.Empty,
+                County = r.County ?? string.Empty,
+                CountyId = r.CountyId,
+                CountyName = r.CountyName ?? string.Empty,
+                Flag = r.Flag ?? string.Empty,
                 SimilarityScore = r.SimilarityScore,
                 MatchType = r.MatchType ?? string.Empty,
                 PhoneticCodes = r.PhoneticCodes != null ? new PersonPhoneticCodes
@@ -244,6 +253,10 @@ public class PhoneticAnalyzersApiService
                 ExternalId = r.ExternalId ?? string.Empty,
                 FullName = r.FullName ?? string.Empty,
                 NormalizedName = r.NormalizedName ?? string.Empty,
+                County = r.County ?? string.Empty,
+                CountyId = r.CountyId,
+                CountyName = r.CountyName ?? string.Empty,
+                Flag = r.Flag ?? string.Empty,
                 SimilarityScore = r.SimilarityScore,
                 MatchType = r.MatchType ?? string.Empty,
                 PhoneticCodes = null
@@ -295,6 +308,45 @@ public class PhoneticAnalyzersApiService
     }
 
     /// <summary>
+    /// Get available counties for filtering
+    /// </summary>
+    public async Task<List<CountyInfo>?> GetCountiesAsync()
+    {
+        try
+        {
+            var httpClient = _httpClientFactory.CreateClient("IngestionApi");
+            var response = await httpClient.GetAsync("/api/counties");
+            if (!response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                {
+                    var errorJson = await response.Content.ReadAsStringAsync();
+                    var validation = JsonConvert.DeserializeObject<ValidationProblemDetails>(errorJson, JsonSettings);
+                    throw new ValidationApiException(validation);
+                }
+                response.EnsureSuccessStatusCode();
+            }
+            
+            var content = await response.Content.ReadAsStringAsync();
+            return JsonConvert.DeserializeObject<List<CountyInfo>>(content, JsonSettings);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get counties");
+            // Return default counties if API fails
+            return new List<CountyInfo>
+            {
+                new() { CountyId = 1, CountyName = "Miami-Dade County", County = "Miami-Dade" },
+                new() { CountyId = 2, CountyName = "Broward County", County = "Broward" },
+                new() { CountyId = 3, CountyName = "Palm Beach County", County = "Palm Beach" },
+                new() { CountyId = 4, CountyName = "Orange County", County = "Orange" },
+                new() { CountyId = 5, CountyName = "Hillsborough County", County = "Hillsborough" },
+                new() { CountyId = 6, CountyName = "Duval County", County = "Duval" }
+            };
+        }
+    }
+
+    /// <summary>
     /// Get person by ID
     /// </summary>
     public async Task<PersonDetails?> GetPersonAsync(string id)
@@ -330,6 +382,10 @@ public class PersonData
 {
     public string ExternalId { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
+    public string County { get; set; } = string.Empty;
+    public int CountyId { get; set; }
+    public string CountyName { get; set; } = string.Empty;
+    public string Flag { get; set; } = "U"; // I, B, U
     public bool ExpandNicknames { get; set; } = true;
 }
 
@@ -378,6 +434,10 @@ public class PersonSearchResult
     public string ExternalId { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string NormalizedName { get; set; } = string.Empty;
+    public string County { get; set; } = string.Empty;
+    public int CountyId { get; set; }
+    public string CountyName { get; set; } = string.Empty;
+    public string Flag { get; set; } = string.Empty;
     public double SimilarityScore { get; set; }
     public string MatchType { get; set; } = string.Empty;
     public PersonPhoneticCodes? PhoneticCodes { get; set; }
@@ -429,6 +489,18 @@ public class PersonDetails
     public PersonPhoneticCodes? PhoneticCodes { get; set; }
 }
 
+public class CountyInfo
+{
+    [JsonProperty("countyId")]
+    public int CountyId { get; set; }
+    
+    [JsonProperty("county")]
+    public string County { get; set; } = string.Empty;
+    
+    [JsonProperty("countyName")]
+    public string CountyName { get; set; } = string.Empty;
+}
+
 // Strongly-typed Advanced search DTOs (Search Functions response)
 public sealed class AdvancedSearchResponse
 {
@@ -446,6 +518,10 @@ public sealed class AdvancedResultItem
     [JsonProperty("externalId")] public string? ExternalId { get; set; }
     [JsonProperty("fullName")] public string? FullName { get; set; }
     [JsonProperty("normalizedName")] public string? NormalizedName { get; set; }
+    [JsonProperty("county")] public string? County { get; set; }
+    [JsonProperty("countyId")] public int CountyId { get; set; }
+    [JsonProperty("countyName")] public string? CountyName { get; set; }
+    [JsonProperty("flag")] public string? Flag { get; set; }
     [JsonProperty("similarityScore")] public double SimilarityScore { get; set; }
     [JsonProperty("matchType")] public string? MatchType { get; set; }
     [JsonProperty("matchMetadata")] public object? MatchMetadata { get; set; }
@@ -487,6 +563,10 @@ public sealed class SimpleResultItem
     [JsonProperty("externalId")] public string? ExternalId { get; set; }
     [JsonProperty("fullName")] public string? FullName { get; set; }
     [JsonProperty("normalizedName")] public string? NormalizedName { get; set; }
+    [JsonProperty("county")] public string? County { get; set; }
+    [JsonProperty("countyId")] public int CountyId { get; set; }
+    [JsonProperty("countyName")] public string? CountyName { get; set; }
+    [JsonProperty("flag")] public string? Flag { get; set; }
     [JsonProperty("similarityScore")] public double SimilarityScore { get; set; }
     [JsonProperty("matchType")] public string? MatchType { get; set; }
 }

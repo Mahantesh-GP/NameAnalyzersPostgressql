@@ -114,6 +114,26 @@ public sealed class PersonSearchResult
     public string NormalizedName { get; init; } = string.Empty;
 
     /// <summary>
+    /// Gets the county name
+    /// </summary>
+    public string County { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the county identifier
+    /// </summary>
+    public int CountyId { get; init; }
+
+    /// <summary>
+    /// Gets the county display name
+    /// </summary>
+    public string CountyName { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Gets the record type flag (I=Individual, B=Business, U=Unknown)
+    /// </summary>
+    public RecordTypeFlag Flag { get; init; }
+
+    /// <summary>
     /// Gets the similarity score (0.0 to 1.0)
     /// </summary>
     public double SimilarityScore { get; init; }

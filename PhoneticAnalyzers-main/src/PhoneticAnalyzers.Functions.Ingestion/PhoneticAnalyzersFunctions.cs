@@ -243,10 +243,22 @@ public class PhoneticAnalyzersFunctions
                 }
                 try
                 {
+                    // Parse the flag
+                    var recordTypeFlag = personData.Flag?.ToUpperInvariant() switch
+                    {
+                        "I" => Domain.ValueObjects.RecordTypeFlag.Individual,
+                        "B" => Domain.ValueObjects.RecordTypeFlag.Business,
+                        _ => Domain.ValueObjects.RecordTypeFlag.Unknown
+                    };
+
                     var command = new IngestPersonCommand
                     {
                         ExternalId = personData.ExternalId,
                         FullName = personData.FullName,
+                        County = personData.County,
+                        CountyId = personData.CountyId,
+                        CountyName = personData.CountyName,
+                        Flag = recordTypeFlag,
                         ExpandNicknames = personData.ExpandNicknames ?? true
                     };
 
@@ -349,6 +361,10 @@ public class PhoneticAnalyzersFunctions
                     externalId = p.ExternalId,
                     fullName = p.FullName,
                     normalizedName = p.NormalizedName,
+                    county = p.County,
+                    countyId = p.CountyId,
+                    countyName = p.CountyName,
+                    flag = p.Flag.ToString(),
                     similarityScore = p.SimilarityScore,
                     matchType = p.MatchType.ToString(),
                     phoneticCodes = p.PhoneticCodes != null ? new
@@ -372,6 +388,90 @@ public class PhoneticAnalyzersFunctions
             var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
             await errorResponse.WriteAsJsonAsync(new
             {
+                error = "Internal server error",
+                message = ex.Message
+            }, ct);
+
+            return errorResponse;
+        }
+    }
+
+    /// <summary>
+    /// Bulk ingest from CSV file - optimized for millions of records
+    /// </summary>
+    [Function("BulkIngestFromFile")]
+    public async Task<HttpResponseData> BulkIngestFromFile(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "ingest/bulk")] HttpRequestData req,
+        CancellationToken ct)
+    {
+        _logger.LogInformation("Bulk ingestion requested");
+
+        try
+        {
+            // Parse multipart form data for file upload
+            var contentType = req.Headers.GetValues("content-type").FirstOrDefault();
+            
+            if (string.IsNullOrEmpty(contentType) || !contentType.Contains("multipart/form-data"))
+            {
+                var badResponse = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badResponse.WriteAsJsonAsync(new { error = "Content type must be multipart/form-data for file upload" }, ct);
+                return badResponse;
+            }
+
+            // For this demo, we'll accept JSON data with file path
+            // In production, you'd handle multipart form data properly
+            var requestBody = await new StreamReader(req.Body).ReadToEndAsync(ct);
+            var bulkRequest = JsonSerializer.Deserialize<BulkIngestRequest>(requestBody, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            if (bulkRequest == null || string.IsNullOrWhiteSpace(bulkRequest.FilePath))
+            {
+                var badResponse = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badResponse.WriteAsJsonAsync(new { error = "FilePath is required for bulk ingestion" }, ct);
+                return badResponse;
+            }
+
+            var command = new BulkIngestCommand
+            {
+                DataSource = bulkRequest.FilePath,
+                BatchSize = bulkRequest.BatchSize ?? 1000,
+                MaxDegreeOfParallelism = bulkRequest.MaxDegreeOfParallelism ?? Environment.ProcessorCount,
+                SkipPhoneticEncoding = bulkRequest.SkipPhoneticEncoding ?? false,
+                ContinueOnError = bulkRequest.ContinueOnError ?? true,
+                SourceSystem = bulkRequest.SourceSystem
+            };
+
+            var result = await _mediator.Send(command, ct);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                statistics = new
+                {
+                    totalProcessed = result.TotalRecordsProcessed,
+                    inserted = result.RecordsInserted,
+                    updated = result.RecordsUpdated,
+                    failed = result.RecordsFailed,
+                    processingDuration = result.ProcessingDuration.ToString(),
+                    recordsPerSecond = Math.Round(result.RecordsPerSecond, 2)
+                },
+                errors = result.BatchErrors,
+                sampleFailedRecords = result.SampleFailedRecords.Take(10) // Limit to first 10 for API response
+            }, ct);
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in bulk ingestion");
+            
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new
+            {
+                success = false,
                 error = "Internal server error",
                 message = ex.Message
             }, ct);
@@ -454,6 +554,26 @@ public class PersonIngestData
     public string FullName { get; set; } = string.Empty;
     
     /// <summary>
+    /// Gets or sets the county
+    /// </summary>
+    public string County { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Gets or sets the county ID
+    /// </summary>
+    public int CountyId { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the county name
+    /// </summary>
+    public string CountyName { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Gets or sets the record type flag
+    /// </summary>
+    public string Flag { get; set; } = "U";
+    
+    /// <summary>
     /// Gets or sets the first name (optional)
     /// </summary>
     public string? FirstName { get; set; }
@@ -467,4 +587,40 @@ public class PersonIngestData
     /// Gets or sets whether to expand nicknames
     /// </summary>
     public bool? ExpandNicknames { get; set; }
+}
+
+/// <summary>
+/// Request model for bulk CSV file ingestion
+/// </summary>
+public class BulkIngestRequest
+{
+    /// <summary>
+    /// Gets or sets the file path for the CSV file to ingest
+    /// </summary>
+    public string FilePath { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Gets or sets the batch size for processing
+    /// </summary>
+    public int? BatchSize { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the maximum degree of parallelism
+    /// </summary>
+    public int? MaxDegreeOfParallelism { get; set; }
+    
+    /// <summary>
+    /// Gets or sets whether to skip phonetic encoding for faster processing
+    /// </summary>
+    public bool? SkipPhoneticEncoding { get; set; }
+    
+    /// <summary>
+    /// Gets or sets whether to continue processing on errors
+    /// </summary>
+    public bool? ContinueOnError { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the source system identifier
+    /// </summary>
+    public string? SourceSystem { get; set; }
 }

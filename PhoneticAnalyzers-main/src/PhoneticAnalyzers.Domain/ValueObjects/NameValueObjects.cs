@@ -180,6 +180,27 @@ public enum PhoneticAlgorithmType
 }
 
 /// <summary>
+/// Enumeration for record type flags used in mortgage solutions
+/// </summary>
+public enum RecordTypeFlag
+{
+    /// <summary>
+    /// Individual person record
+    /// </summary>
+    Individual = 'I',
+
+    /// <summary>
+    /// Business entity record
+    /// </summary>
+    Business = 'B',
+
+    /// <summary>
+    /// Unknown record type
+    /// </summary>
+    Unknown = 'U'
+}
+
+/// <summary>
 /// Value object representing an external identifier
 /// </summary>
 public sealed record ExternalId
