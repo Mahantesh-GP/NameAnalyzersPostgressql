@@ -4,8 +4,12 @@ using PhoneticAnalyzers.Infrastructure.Persistence;
 using PhoneticAnalyzers.Infrastructure.Persistence.Repositories;
 using PhoneticAnalyzers.Application.Commands.Ingestion;
 using PhoneticAnalyzers.Application.Services.Phonetic;
+using PhoneticAnalyzers.Application.Services.Text;
+using PhoneticAnalyzers.Application.Services.Nicknames;
+using PhoneticAnalyzers.Application.Services.LLM;
 using PhoneticAnalyzers.Application.Behaviors;
 using PhoneticAnalyzers.Domain.Repositories;
+using PhoneticAnalyzers.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 using MediatR;
 using FluentValidation;
@@ -44,6 +48,18 @@ builder.Services.AddDbContext<PhoneticAnalyzersDbContext>(options =>
 
 // Repositories
 builder.Services.AddScoped<IPersonRepository, PersonRepository>();
+
+// Multilingual Search Repositories
+builder.Services.AddScoped<IPersonNameRepository, PersonNameRepository>();
+builder.Services.AddScoped<INameAliasRepository, NameAliasRepository>();
+builder.Services.AddScoped<INicknameMapRepository, NicknameMapRepository>();
+builder.Services.AddScoped<INameAliasCacheRepository, NameAliasCacheRepository>();
+
+// Text processing services
+builder.Services.AddScoped<ITextNormalizationService, TextNormalizationService>();
+
+// Curated nickname service
+builder.Services.AddScoped<ICuratedNicknameService, SimpleCuratedNicknameService>();
 
 // Phonetic encoding services
 builder.Services.AddSingleton<DoubleMetaphoneEncoder>();

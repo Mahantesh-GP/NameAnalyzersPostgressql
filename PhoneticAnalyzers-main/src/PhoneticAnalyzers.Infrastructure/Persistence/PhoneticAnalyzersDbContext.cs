@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using PhoneticAnalyzers.Domain.Entities;
+using PhoneticAnalyzers.Domain.ValueObjects;
 using PhoneticAnalyzers.Infrastructure.Persistence.Configurations;
 using System.Reflection;
 
@@ -20,6 +21,26 @@ public sealed class PhoneticAnalyzersDbContext : DbContext
     /// Gets or sets the Beider-Morse variants DbSet
     /// </summary>
     public DbSet<BeiderMorseVariant> BeiderMorseVariants => Set<BeiderMorseVariant>();
+
+    /// <summary>
+    /// Gets or sets the multilingual person names DbSet
+    /// </summary>
+    public DbSet<PersonName> PersonNames => Set<PersonName>();
+
+    /// <summary>
+    /// Gets or sets the name aliases DbSet
+    /// </summary>
+    public DbSet<NameAlias> NameAliases => Set<NameAlias>();
+
+    /// <summary>
+    /// Gets or sets the nickname mappings DbSet
+    /// </summary>
+    public DbSet<NicknameMap> NicknameMaps => Set<NicknameMap>();
+
+    /// <summary>
+    /// Gets or sets the name alias cache DbSet
+    /// </summary>
+    public DbSet<NameAliasCache> NameAliasCache => Set<NameAliasCache>();
 
     /// <summary>
     /// Initializes a new instance of the PhoneticAnalyzersDbContext class
@@ -148,6 +169,31 @@ public sealed class PhoneticAnalyzersDbContext : DbContext
         });
 
         modelBuilder.Entity<BeiderMorseVariant>(entity =>
+        {
+            entity.Property(e => e.CreatedUtc)
+                .HasDefaultValueSql("NOW()");
+        });
+
+        // Configure multilingual search entities
+        modelBuilder.Entity<PersonName>(entity =>
+        {
+            entity.Property(e => e.CreatedUtc)
+                .HasDefaultValueSql("NOW()");
+        });
+
+        modelBuilder.Entity<NameAlias>(entity =>
+        {
+            entity.Property(e => e.CreatedUtc)
+                .HasDefaultValueSql("NOW()");
+        });
+
+        modelBuilder.Entity<NicknameMap>(entity =>
+        {
+            entity.Property(e => e.CreatedUtc)
+                .HasDefaultValueSql("NOW()");
+        });
+
+        modelBuilder.Entity<NameAliasCache>(entity =>
         {
             entity.Property(e => e.CreatedUtc)
                 .HasDefaultValueSql("NOW()");

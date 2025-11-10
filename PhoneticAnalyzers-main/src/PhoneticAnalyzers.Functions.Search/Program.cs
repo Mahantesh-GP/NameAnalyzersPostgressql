@@ -75,6 +75,12 @@ public class Program
 
                 // Repositories
                 services.AddScoped<PhoneticAnalyzers.Domain.Repositories.IPersonRepository, PhoneticAnalyzers.Infrastructure.Persistence.Repositories.PersonRepository>();
+                
+                // Multilingual Search Repositories
+                services.AddScoped<PhoneticAnalyzers.Domain.Repositories.IPersonNameRepository, PhoneticAnalyzers.Infrastructure.Persistence.Repositories.PersonNameRepository>();
+                services.AddScoped<PhoneticAnalyzers.Domain.Repositories.INameAliasRepository, PhoneticAnalyzers.Infrastructure.Persistence.Repositories.NameAliasRepository>();
+                services.AddScoped<PhoneticAnalyzers.Domain.Repositories.INicknameMapRepository, PhoneticAnalyzers.Infrastructure.Persistence.Repositories.NicknameMapRepository>();
+                services.AddScoped<PhoneticAnalyzers.Domain.Repositories.INameAliasCacheRepository, PhoneticAnalyzers.Infrastructure.Persistence.Repositories.NameAliasCacheRepository>();
 
                 // Phonetic encoding services
                 services.AddSingleton<PhoneticAnalyzers.Application.Services.Phonetic.DoubleMetaphoneEncoder>();
@@ -82,6 +88,9 @@ public class Program
                 services.AddSingleton<PhoneticAnalyzers.Application.Services.Phonetic.IPhoneticEncoderFactory, PhoneticAnalyzers.Application.Services.Phonetic.PhoneticEncoderFactory>();
                 services.AddScoped<PhoneticAnalyzers.Application.Services.Phonetic.IPhoneticEncodingService, PhoneticAnalyzers.Application.Services.Phonetic.PhoneticEncodingService>();
                 services.AddSingleton<PhoneticAnalyzers.Application.Services.Phonetic.INicknameService, PhoneticAnalyzers.Application.Services.Phonetic.InMemoryNicknameService>();
+                
+                // Text normalization service
+                services.AddScoped<PhoneticAnalyzers.Domain.Services.ITextNormalizationService, PhoneticAnalyzers.Application.Services.Text.TextNormalizationService>();
 
                 // MediatR for CQRS
                 services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(PhoneticAnalyzers.Application.Services.Phonetic.IPhoneticEncodingService).Assembly));

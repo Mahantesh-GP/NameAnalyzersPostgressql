@@ -255,6 +255,63 @@ public class SearchFunctions
             return errorResponse;
         }
     }
+
+    /// <summary>
+    /// Get list of available counties for filtering
+    /// </summary>
+    [Function("GetCounties")]
+    public async Task<HttpResponseData> GetCounties(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "counties")] HttpRequestData req,
+        CancellationToken ct)
+    {
+        _logger.LogInformation("Get counties requested");
+
+        try
+        {
+            // For now, return a hardcoded list of common counties
+            // In a real implementation, this would query the database for actual counties
+            var counties = new List<CountyInfo>
+            {
+                new CountyInfo { CountyId = 1, County = "LA", CountyName = "Los Angeles County" },
+                new CountyInfo { CountyId = 2, County = "OR", CountyName = "Orange County" },
+                new CountyInfo { CountyId = 3, County = "SD", CountyName = "San Diego County" },
+                new CountyInfo { CountyId = 4, County = "SB", CountyName = "San Bernardino County" },
+                new CountyInfo { CountyId = 5, County = "RV", CountyName = "Riverside County" },
+                new CountyInfo { CountyId = 6, County = "VC", CountyName = "Ventura County" },
+                new CountyInfo { CountyId = 7, County = "SC", CountyName = "Santa Clara County" },
+                new CountyInfo { CountyId = 8, County = "AL", CountyName = "Alameda County" },
+                new CountyInfo { CountyId = 9, County = "SF", CountyName = "San Francisco County" },
+                new CountyInfo { CountyId = 10, County = "SM", CountyName = "San Mateo County" },
+                new CountyInfo { CountyId = 11, County = "CC", CountyName = "Contra Costa County" },
+                new CountyInfo { CountyId = 12, County = "SAC", CountyName = "Sacramento County" },
+                new CountyInfo { CountyId = 13, County = "FR", CountyName = "Fresno County" },
+                new CountyInfo { CountyId = 14, County = "KR", CountyName = "Kern County" },
+                new CountyInfo { CountyId = 15, County = "TU", CountyName = "Tulare County" },
+                new CountyInfo { CountyId = 16, County = "SJ", CountyName = "San Joaquin County" },
+                new CountyInfo { CountyId = 17, County = "ST", CountyName = "Stanislaus County" },
+                new CountyInfo { CountyId = 18, County = "MR", CountyName = "Merced County" },
+                new CountyInfo { CountyId = 19, County = "KI", CountyName = "Kings County" },
+                new CountyInfo { CountyId = 20, County = "MD", CountyName = "Madera County" }
+            };
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(counties, ct);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting counties");
+            
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new
+            {
+                error = "Internal server error",
+                message = ex.Message
+            }, ct);
+
+            return errorResponse;
+        }
+    }
 }
 
 /// <summary>
@@ -312,4 +369,25 @@ public class BulkSearchRequest
     /// Gets or sets the minimum similarity threshold
     /// </summary>
     public double? MinSimilarityThreshold { get; set; }
+}
+
+/// <summary>
+/// County information model
+/// </summary>
+public class CountyInfo
+{
+    /// <summary>
+    /// Gets or sets the county ID
+    /// </summary>
+    public int CountyId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the county code
+    /// </summary>
+    public string County { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the county name
+    /// </summary>
+    public string CountyName { get; set; } = string.Empty;
 }

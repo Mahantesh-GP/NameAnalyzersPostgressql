@@ -80,6 +80,9 @@ var host = new HostBuilder()
         services.AddSingleton<IPhoneticEncoderFactory, PhoneticEncoderFactory>();
         services.AddScoped<IPhoneticEncodingService, PhoneticEncodingService>();
         services.AddSingleton<INicknameService, InMemoryNicknameService>();
+        
+        // Text normalization service
+        services.AddScoped<PhoneticAnalyzers.Domain.Services.ITextNormalizationService, PhoneticAnalyzers.Application.Services.Text.TextNormalizationService>();
 
         // HTTP Client (retry policy can be added later)
         services.AddHttpClient("RetryClient");
