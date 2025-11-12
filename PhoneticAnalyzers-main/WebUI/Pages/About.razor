@@ -1,0 +1,73 @@
+@page "/about"
+
+<PageTitle>About - Phonetic Analyzer</PageTitle>
+
+<MudGrid>
+    <MudItem xs="12">
+        <MudText Typo="Typo.h4" GutterBottom="true">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Class="mr-2" />
+            About Phonetic Analyzers
+        </MudText>
+    </MudItem>
+
+    <MudItem xs="12">
+        <MudPaper Class="pa-6" Elevation="2">
+            <MudText Typo="Typo.h5" GutterBottom="true">What is Phonetic Analyzers?</MudText>
+            <MudText Typo="Typo.body1" Paragraph="true">
+                Phonetic Analyzers is an enterprise-grade name intelligence platform that solves the complex 
+                challenge of matching names across different cultures, languages, and variations. It combines 
+                advanced AI models with high-performance caching to deliver instant name matching at massive scale.
+            </MudText>
+            
+            <MudDivider Class="my-4" />
+            
+        <MudText Typo="Typo.h6" GutterBottom="true">Key Capabilities</MudText>
+        <MudList T="string">
+            <MudListItem T="string" Icon="@Icons.Material.Filled.Psychology">
+                <strong>AI-Powered Analysis:</strong> Multi-provider LLM integration for cultural understanding
+            </MudListItem>
+            <MudListItem T="string" Icon="@Icons.Material.Filled.Speed">
+                <strong>Smart Caching:</strong> 3-tier caching with 95% hit rates for sub-50ms responses
+            </MudListItem>
+            <MudListItem T="string" Icon="@Icons.Material.Filled.Language">
+                <strong>Multi-Cultural:</strong> Support for global naming conventions and patterns
+            </MudListItem>
+            <MudListItem T="string" Icon="@Icons.Material.Filled.Analytics">
+                <strong>Phonetic Matching:</strong> Advanced algorithms beyond traditional Soundex/Metaphone
+            </MudListItem>
+            <MudListItem T="string" Icon="@Icons.Material.Filled.CloudUpload">
+                <strong>Batch Processing:</strong> Upload CSV/JSON files for bulk name enrichment
+            </MudListItem>
+        </MudList>            <MudDivider Class="my-4" />
+            
+            <MudText Typo="Typo.h6" GutterBottom="true">Technology Stack</MudText>
+            <MudChipSet T="string">
+                <MudChip T="string" Color="Color.Primary">.NET 8.0</MudChip>
+                <MudChip T="string" Color="Color.Secondary">Blazor WebAssembly</MudChip>
+                <MudChip T="string" Color="Color.Success">MudBlazor</MudChip>
+                <MudChip T="string" Color="Color.Info">Azure Functions</MudChip>
+                <MudChip T="string" Color="Color.Warning">PostgreSQL</MudChip>
+                <MudChip T="string" Color="Color.Error">Redis</MudChip>
+                <MudChip T="string" Color="Color.Tertiary">AI/LLM</MudChip>
+            </MudChipSet>
+
+            <MudDivider Class="my-4" />
+            
+            <MudText Typo="Typo.h6" GutterBottom="true">Resources</MudText>
+            <MudStack Row Spacing="2">
+                <MudButton Variant="Variant.Outlined" 
+                           StartIcon="@Icons.Custom.Brands.GitHub" 
+                           Href="https://github.com/Mahantesh-GP/PhoneticAnalyzers" 
+                           Target="_blank">
+                    GitHub Repository
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" 
+                           StartIcon="@Icons.Material.Filled.Description" 
+                           Href="https://github.com/Mahantesh-GP/PhoneticAnalyzers/blob/main/README.md" 
+                           Target="_blank">
+                    Documentation
+                </MudButton>
+            </MudStack>
+        </MudPaper>
+    </MudItem>
+</MudGrid>

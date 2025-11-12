@@ -45,6 +45,16 @@ public sealed class SearchPersonsQuery : IRequest<SearchPersonsQueryResult>
     /// Gets the specific phonetic algorithms to use (empty means all)
     /// </summary>
     public IReadOnlyList<PhoneticAlgorithmType> AlgorithmTypes { get; init; } = [];
+
+    /// <summary>
+    /// Optional county filter (numeric ID)
+    /// </summary>
+    public int? CountyId { get; init; }
+
+    /// <summary>
+    /// Optional record type filter (I, B, U)
+    /// </summary>
+    public RecordTypeFlag? RecordTypeFilter { get; init; }
 }
 
 /// <summary>

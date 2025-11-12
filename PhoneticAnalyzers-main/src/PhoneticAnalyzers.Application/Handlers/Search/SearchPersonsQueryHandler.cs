@@ -71,7 +71,9 @@ public sealed class SearchPersonsQueryHandler : IRequestHandler<SearchPersonsQue
                 phoneticResult.BeiderMorseCodes,
                 request.MaxResults,
                 request.MinSimilarityThreshold,
-                request.IncludeTrigramSimilarity);
+                request.IncludeTrigramSimilarity,
+                request.CountyId,
+                request.RecordTypeFilter);
 
             // Perform the search
             var repositoryResults = await _personRepository.SearchByPhoneticAsync(searchCriteria, cancellationToken);

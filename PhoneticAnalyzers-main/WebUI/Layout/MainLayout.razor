@@ -1,0 +1,123 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+
+<MudThemeProvider @bind-IsDarkMode="@_isDarkMode" Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="2" Dense="false">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" 
+                       Color="Color.Inherit" 
+                       Edge="Edge.Start" 
+                       OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-3">Phonetic Analyzers</MudText>
+        <MudSpacer />
+        <MudIconButton Icon="@(Icons.Material.Filled.Info)" 
+                       Color="Color.Inherit" 
+                       Href="https://github.com/Mahantesh-GP/PhoneticAnalyzers" 
+                       Target="_blank" />
+        <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" 
+                       Color="Color.Inherit" 
+                       OnClick="@ToggleTheme" />
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" 
+               Elevation="2" 
+               ClipMode="DrawerClipMode.Always"
+               Breakpoint="Breakpoint.Md"
+               Variant="@DrawerVariant.Responsive">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6" Color="Color.Primary">
+                <MudIcon Icon="@Icons.Material.Filled.AccountBox" Class="mr-2" />
+                Name Search
+            </MudText>
+        </MudDrawerHeader>
+        <MudNavMenu>
+            <MudNavLink Href="/" 
+                        Icon="@Icons.Material.Filled.Home" 
+                        Match="NavLinkMatch.All">
+                Home
+            </MudNavLink>
+            <MudNavLink Href="/search" 
+                        Icon="@Icons.Material.Filled.Search">
+                Advanced Search
+            </MudNavLink>
+            <MudNavLink Href="/bulk" 
+                        Icon="@Icons.Material.Filled.CloudUpload">
+                Bulk Upload
+            </MudNavLink>
+            <MudDivider Class="my-2" />
+            <MudNavLink Href="/about" 
+                        Icon="@Icons.Material.Filled.Info">
+                About
+            </MudNavLink>
+        </MudNavMenu>
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="my-6">
+            <ErrorBoundary>
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent Context="ex">
+                    <MudAlert Severity="Severity.Error" Class="my-4">
+                        <MudText Typo="Typo.h6">An error occurred</MudText>
+                        <MudText Typo="Typo.body2">@ex.Message</MudText>
+                    </MudAlert>
+                </ErrorContent>
+            </ErrorBoundary>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = false;
+    private bool _isDarkMode = true;
+
+    private MudTheme _theme = new MudTheme()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = "#1976d2",
+            Secondary = "#dc004e",
+            AppbarBackground = "#1976d2",
+            Success = "#4caf50",
+            Info = "#2196f3",
+            Warning = "#ff9800",
+            Error = "#f44336"
+        },
+        PaletteDark = new PaletteDark()
+        {
+            Primary = "#90caf9",
+            Secondary = "#f48fb1",
+            AppbarBackground = "#1e1e1e",
+            Success = "#66bb6a",
+            Info = "#42a5f5",
+            Warning = "#ffa726",
+            Error = "#ef5350",
+            Background = "#121212",
+            Surface = "#1e1e1e",
+            DrawerBackground = "#1e1e1e"
+        },
+        Typography = new Typography()
+        {
+            Default = new Default()
+            {
+                FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" }
+            }
+        }
+    };
+
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private void ToggleTheme()
+    {
+        _isDarkMode = !_isDarkMode;
+    }
+}

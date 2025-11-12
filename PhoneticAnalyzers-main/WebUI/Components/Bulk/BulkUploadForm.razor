@@ -1,0 +1,108 @@
+@using PhoneticAnalyzers.WebUI.Models
+@inject ILogger<BulkUploadForm> Logger
+
+<MudPaper Class="pa-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="mr-2" />
+        Bulk Search
+    </MudText>
+
+    <EditForm Model="@Model" OnValidSubmit="HandleSubmit">
+        <MudGrid>
+            <!-- Names Input -->
+            <MudItem xs="12">
+                <MudTextField 
+                    @bind-Value="NamesText" 
+                    Label="Names to Search" 
+                    Variant="Variant.Outlined"
+                    Lines="10"
+                    HelperText="Enter one name per line (max 20 names)"
+                    Placeholder="John Smith&#10;Mary Johnson&#10;Robert Williams" />
+            </MudItem>
+
+            <!-- Max Results Per Search -->
+            <MudItem xs="6">
+                <MudNumericField 
+                    @bind-Value="Model.MaxResultsPerSearch" 
+                    Label="Max Results per Name" 
+                    Variant="Variant.Outlined"
+                    Min="1"
+                    Max="50"
+                    HelperText="1-50 results per search" />
+            </MudItem>
+
+            <!-- Min Similarity -->
+            <MudItem xs="6">
+                <MudNumericField 
+                    @bind-Value="Model.MinSimilarityThreshold" 
+                    Label="Min Similarity" 
+                    Variant="Variant.Outlined"
+                    Min="0"
+                    Max="1"
+                    Step="0.05"
+                    Format="F2"
+                    HelperText="0.0 - 1.0" />
+            </MudItem>
+
+            <!-- Submit Button -->
+            <MudItem xs="12">
+                <MudButton 
+                    ButtonType="ButtonType.Submit" 
+                    Variant="Variant.Filled" 
+                    Color="Color.Primary"
+                    Size="Size.Large"
+                    Disabled="@(IsLoading || string.IsNullOrWhiteSpace(NamesText))"
+                    FullWidth="true">
+                    @if (IsLoading)
+                    {
+                        <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                        <MudText>Processing...</MudText>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Send" Class="mr-2" />
+                        <MudText>Search All Names</MudText>
+                    }
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </EditForm>
+
+    @if (!string.IsNullOrWhiteSpace(NamesText))
+    {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-4">
+            <MudText Typo="Typo.body2">
+                Ready to search <strong>@GetNameCount()</strong> names
+            </MudText>
+        </MudAlert>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public BulkSearchRequest Model { get; set; } = new();
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
+
+    private string NamesText { get; set; } = string.Empty;
+
+    private async Task HandleSubmit()
+    {
+        // Parse names from text
+        Model.SearchTerms = NamesText
+            .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(n => n.Trim())
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Take(20) // Limit to 20 names
+            .ToList();
+
+        Logger.LogInformation("Bulk search form submitted with {Count} names", Model.SearchTerms.Count);
+        await OnSubmit.InvokeAsync();
+    }
+
+    private int GetNameCount()
+    {
+        return NamesText
+            .Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+            .Count(n => !string.IsNullOrWhiteSpace(n.Trim()));
+    }
+}

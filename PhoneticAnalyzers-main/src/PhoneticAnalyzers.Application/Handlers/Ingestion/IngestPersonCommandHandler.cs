@@ -39,7 +39,12 @@ public sealed class IngestPersonCommandHandler : IRequestHandler<IngestPersonCom
             request.ExternalId, request.FullName);
 
         // Create value objects
-        var externalId = ExternalId.Create(request.ExternalId);
+        // Generate ExternalId if not provided (for CSV uploads without external IDs)
+        var externalIdValue = string.IsNullOrWhiteSpace(request.ExternalId)
+            ? $"GEN-{Guid.NewGuid():N}"  // Generate unique ID
+            : request.ExternalId;
+        
+        var externalId = ExternalId.Create(externalIdValue);
         var normalizedName = NormalizedName.Create(request.FullName);
 
         // Generate phonetic codes

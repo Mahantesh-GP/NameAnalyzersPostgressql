@@ -1,0 +1,120 @@
+﻿@page "/"
+
+<PageTitle>Home - Phonetic Analyzers</PageTitle>
+
+<MudGrid>
+    <MudItem xs="12">
+        <MudPaper Class="pa-8" Elevation="4">
+            <MudStack AlignItems="AlignItems.Center" Spacing="4">
+                <MudIcon Icon="@Icons.Material.Filled.Search" Color="Color.Primary" Size="Size.Large" Style="font-size: 5rem;" />
+                <MudText Typo="Typo.h3" Align="Align.Center" GutterBottom="true">
+                    Welcome to Phonetic Analyzers
+                </MudText>
+                <MudText Typo="Typo.h6" Align="Align.Center" Color="Color.Secondary">
+                    AI-Powered Name Intelligence Platform
+                </MudText>
+                <MudText Typo="Typo.body1" Align="Align.Center" Class="mt-4" Style="max-width: 800px;">
+                    Transform names into intelligence with advanced phonetic analysis. 
+                    Our system understands cultural variations, nicknames, and linguistic patterns 
+                    using AI to power global-scale name matching and enrichment.
+                </MudText>
+            </MudStack>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudCard Elevation="2" Class="pa-4" Style="height: 100%;">
+            <MudCardContent>
+                <MudStack Spacing="3">
+                    <MudIcon Icon="@Icons.Material.Filled.Search" Color="Color.Primary" Size="Size.Large" />
+                    <MudText Typo="Typo.h5">Advanced Search</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Search for names with advanced filtering options including county, 
+                        record type, similarity thresholds, and phonetic matching algorithms.
+                    </MudText>
+                    <MudText Typo="Typo.body2">
+                         Multi-criteria filtering<br />
+                         Phonetic code analysis<br />
+                         Nickname expansion<br />
+                         Real-time results
+                    </MudText>
+                </MudStack>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/search" FullWidth="true">
+                    Start Searching
+                </MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudCard Elevation="2" Class="pa-4" Style="height: 100%;">
+            <MudCardContent>
+                <MudStack Spacing="3">
+                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Color="Color.Secondary" Size="Size.Large" />
+                    <MudText Typo="Typo.h5">Bulk Upload</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Upload multiple names at once for batch processing. 
+                        Perfect for large-scale data matching and enrichment operations.
+                    </MudText>
+                    <MudText Typo="Typo.body2">
+                         Process up to 20 names at once<br />
+                         Configurable similarity settings<br />
+                         Detailed match results<br />
+                         CSV export capability
+                    </MudText>
+                </MudStack>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" Href="/bulk" FullWidth="true">
+                    Bulk Search
+                </MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12">
+        <MudPaper Class="pa-6" Elevation="2">
+            <MudText Typo="Typo.h5" GutterBottom="true">Key Features</MudText>
+            <MudGrid>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                        <MudIcon Icon="@Icons.Material.Filled.Psychology" Color="Color.Info" Size="Size.Large" />
+                        <MudText Typo="Typo.subtitle1" Align="Align.Center">AI-Powered</MudText>
+                        <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Secondary">
+                            Advanced machine learning for accurate matching
+                        </MudText>
+                    </MudStack>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                        <MudIcon Icon="@Icons.Material.Filled.Speed" Color="Color.Success" Size="Size.Large" />
+                        <MudText Typo="Typo.subtitle1" Align="Align.Center">Lightning Fast</MudText>
+                        <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Secondary">
+                            Sub-100ms response times with smart caching
+                        </MudText>
+                    </MudStack>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                        <MudIcon Icon="@Icons.Material.Filled.Language" Color="Color.Warning" Size="Size.Large" />
+                        <MudText Typo="Typo.subtitle1" Align="Align.Center">Multi-Cultural</MudText>
+                        <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Secondary">
+                            Support for global naming conventions
+                        </MudText>
+                    </MudStack>
+                </MudItem>
+                <MudItem xs="12" sm="6" md="3">
+                    <MudStack AlignItems="AlignItems.Center" Spacing="2">
+                        <MudIcon Icon="@Icons.Material.Filled.Security" Color="Color.Error" Size="Size.Large" />
+                        <MudText Typo="Typo.subtitle1" Align="Align.Center">Enterprise Grade</MudText>
+                        <MudText Typo="Typo.body2" Align="Align.Center" Color="Color.Secondary">
+                            Secure, scalable, and reliable
+                        </MudText>
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudItem>
+</MudGrid>

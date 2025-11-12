@@ -27,6 +27,17 @@ public class SearchFunctions
         _mediator = mediator;
     }
 
+    private static PhoneticAnalyzers.Domain.ValueObjects.RecordTypeFlag? MapRecordType(string? code)
+    {
+        return code?.ToUpperInvariant() switch
+        {
+            "I" => PhoneticAnalyzers.Domain.ValueObjects.RecordTypeFlag.Individual,
+            "B" => PhoneticAnalyzers.Domain.ValueObjects.RecordTypeFlag.Business,
+            "U" => PhoneticAnalyzers.Domain.ValueObjects.RecordTypeFlag.Unknown,
+            _ => null
+        };
+    }
+
     /// <summary>
     /// Health check endpoint for search functions
     /// </summary>
@@ -81,7 +92,9 @@ public class SearchFunctions
                 MinSimilarityThreshold = searchRequest.MinSimilarityThreshold ?? 0.3,
                 IncludeTrigramSimilarity = searchRequest.IncludeTrigramSimilarity ?? true,
                 ExpandNicknames = searchRequest.ExpandNicknames ?? true,
-                IncludeMatchDetails = searchRequest.IncludeMatchDetails ?? true
+                IncludeMatchDetails = searchRequest.IncludeMatchDetails ?? true,
+                CountyId = searchRequest.CountyId,
+                RecordTypeFilter = MapRecordType(searchRequest.RecordType)
             };
 
             var searchResults = await _mediator.Send(query, ct);
@@ -95,7 +108,9 @@ public class SearchFunctions
                     maxResults = query.MaxResults,
                     minSimilarityThreshold = query.MinSimilarityThreshold,
                     includeTrigramSimilarity = query.IncludeTrigramSimilarity,
-                    expandNicknames = query.ExpandNicknames
+                    expandNicknames = query.ExpandNicknames,
+                    countyId = query.CountyId,
+                    recordType = query.RecordTypeFilter?.ToString()
                 },
                 totalMatches = searchResults.Matches.Count,
                 executionTime = searchResults.ExecutionTime.TotalMilliseconds,
@@ -118,7 +133,7 @@ public class SearchFunctions
                     county = match.County,
                     countyId = match.CountyId,
                     countyName = match.CountyName,
-                    flag = match.Flag.ToString(),
+                    flag = ((char)match.Flag).ToString(),
                     similarityScore = match.SimilarityScore,
                     matchType = match.MatchType.ToString(),
                     matchMetadata = match.MatchMetadata,
@@ -348,6 +363,16 @@ public class AdvancedSearchRequest
     /// Gets or sets whether to include match details
     /// </summary>
     public bool? IncludeMatchDetails { get; set; }
+
+    /// <summary>
+    /// Optional county filter (by numeric ID)
+    /// </summary>
+    public int? CountyId { get; set; }
+
+    /// <summary>
+    /// Optional record type filter ("I", "B", or "U")
+    /// </summary>
+    public string? RecordType { get; set; }
 }
 
 /// <summary>

@@ -1,0 +1,230 @@
+@using PhoneticAnalyzers.WebUI.Models
+@inject IIngestionApiClient IngestionClient
+@inject ISnackbar Snackbar
+@inject ILogger<BulkFileUpload> Logger
+
+<MudPaper Class="pa-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="mr-2" />
+        Bulk Upload (CSV)
+    </MudText>
+
+    <MudGrid>
+        <MudItem xs="12">
+            <InputFile OnChange="OnFileSelected" multiple="false" accept=".csv" />
+            <MudText Class="mt-2" Typo="Typo.body2">Select a CSV file with columns: externalId, fullName, county, countyId, countyName, flag</MudText>
+        </MudItem>
+
+        <MudItem xs="12" class="mt-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!_hasFile || _isUploading)" OnClick="Upload">
+                @if (_isUploading)
+                {
+                    <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                    <MudText>Uploading...</MudText>
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.UploadFile" Class="mr-2" />
+                    <MudText>Upload and Ingest</MudText>
+                }
+            </MudButton>
+        </MudItem>
+
+        @if (_preview.Any())
+        {
+            <MudItem xs="12" class="mt-4">
+                <MudTable Items="_preview" Dense="true" Hover="true">
+                    <ToolBarContent>
+                        <MudText Typo="Typo.subtitle2">Preview (@_preview.Count items)</MudText>
+                    </ToolBarContent>
+                    <HeaderContent>
+                        <MudTh>ExternalId</MudTh>
+                        <MudTh>Full Name</MudTh>
+                        <MudTh>County</MudTh>
+                        <MudTh>County Id</MudTh>
+                        <MudTh>County Name</MudTh>
+                        <MudTh>Flag</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="ExternalId">@context.ExternalId</MudTd>
+                        <MudTd DataLabel="Full Name">@context.FullName</MudTd>
+                        <MudTd DataLabel="County">@context.County</MudTd>
+                        <MudTd DataLabel="County Id">@context.CountyId</MudTd>
+                        <MudTd DataLabel="County Name">@context.CountyName</MudTd>
+                        <MudTd DataLabel="Flag">@context.Flag</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudItem>
+        }
+
+        @if (_result != null)
+        {
+            <MudItem xs="12" class="mt-4">
+                <MudAlert Severity="@(_result.Failed > 0 ? Severity.Warning : Severity.Success)" Dense="true">
+                    Processed @_result.TotalProcessed. Success: @_result.Successful, Failed: @_result.Failed
+                </MudAlert>
+            </MudItem>
+        }
+    </MudGrid>
+</MudPaper>
+
+@code {
+    private IBrowserFile? _file;
+    private bool _hasFile;
+    private bool _isUploading;
+    private readonly List<PersonIngestData> _preview = new();
+    private BatchIngestResponse? _result;
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _file = e.File;
+        _hasFile = _file != null;
+        _ = ParsePreviewAsync();
+    }
+
+    private async Task ParsePreviewAsync()
+    {
+        _preview.Clear();
+        _result = null;
+        if (_file == null) return;
+
+        try
+        {
+            using var stream = _file.OpenReadStream(10 * 1024 * 1024); // 10 MB max
+            using var reader = new StreamReader(stream);
+            var headerLine = await reader.ReadLineAsync();
+            if (string.IsNullOrWhiteSpace(headerLine)) return;
+
+            var headers = headerLine.Split(',').Select(h => h.Trim().ToLowerInvariant()).ToArray();
+            int idxExternalId = Array.IndexOf(headers, "externalid");
+            int idxFullName = Array.IndexOf(headers, "fullname");
+            int idxCounty = Array.IndexOf(headers, "county");
+            int idxCountyId = Array.IndexOf(headers, "countyid");
+            int idxCountyName = Array.IndexOf(headers, "countyname");
+            int idxFlag = Array.IndexOf(headers, "flag");
+
+            string? line;
+            int count = 0;
+            while ((line = await reader.ReadLineAsync()) != null && count < 50) // preview first 50 rows
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var cols = SplitCsvLine(line);
+                var item = new PersonIngestData
+                {
+                    ExternalId = idxExternalId >= 0 ? cols.ElementAtOrDefault(idxExternalId) : null,
+                    FullName = idxFullName >= 0 ? (cols.ElementAtOrDefault(idxFullName) ?? string.Empty) : string.Empty,
+                    County = idxCounty >= 0 ? cols.ElementAtOrDefault(idxCounty) : null,
+                    CountyId = idxCountyId >= 0 && int.TryParse(cols.ElementAtOrDefault(idxCountyId), out var cId) ? cId : null,
+                    CountyName = idxCountyName >= 0 ? cols.ElementAtOrDefault(idxCountyName) : null,
+                    Flag = idxFlag >= 0 ? cols.ElementAtOrDefault(idxFlag) : "U",
+                    ExpandNicknames = true
+                };
+                if (!string.IsNullOrWhiteSpace(item.FullName))
+                {
+                    _preview.Add(item);
+                    count++;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to parse CSV");
+            Snackbar.Add($"Failed to parse CSV: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task Upload()
+    {
+        if (_file == null || !_preview.Any()) return;
+        _isUploading = true;
+        _result = null;
+        try
+        {
+            // Read full file and prepare request
+            var persons = new List<PersonIngestData>();
+            using var stream = _file.OpenReadStream(50 * 1024 * 1024); // 50 MB
+            using var reader = new StreamReader(stream);
+            var headerLine = await reader.ReadLineAsync();
+            if (string.IsNullOrWhiteSpace(headerLine)) throw new InvalidOperationException("Missing header row");
+            var headers = headerLine.Split(',').Select(h => h.Trim().ToLowerInvariant()).ToArray();
+            int idxExternalId = Array.IndexOf(headers, "externalid");
+            int idxFullName = Array.IndexOf(headers, "fullname");
+            int idxCounty = Array.IndexOf(headers, "county");
+            int idxCountyId = Array.IndexOf(headers, "countyid");
+            int idxCountyName = Array.IndexOf(headers, "countyname");
+            int idxFlag = Array.IndexOf(headers, "flag");
+
+            string? line;
+            while ((line = await reader.ReadLineAsync()) != null)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                var cols = SplitCsvLine(line);
+                var item = new PersonIngestData
+                {
+                    ExternalId = idxExternalId >= 0 ? cols.ElementAtOrDefault(idxExternalId) : null,
+                    FullName = idxFullName >= 0 ? (cols.ElementAtOrDefault(idxFullName) ?? string.Empty) : string.Empty,
+                    County = idxCounty >= 0 ? cols.ElementAtOrDefault(idxCounty) : null,
+                    CountyId = idxCountyId >= 0 && int.TryParse(cols.ElementAtOrDefault(idxCountyId), out var cId) ? cId : null,
+                    CountyName = idxCountyName >= 0 ? cols.ElementAtOrDefault(idxCountyName) : null,
+                    Flag = idxFlag >= 0 ? cols.ElementAtOrDefault(idxFlag) : "U",
+                    ExpandNicknames = true
+                };
+                if (!string.IsNullOrWhiteSpace(item.FullName))
+                {
+                    persons.Add(item);
+                }
+            }
+
+            var request = new BatchIngestRequest { Persons = persons };
+            _result = await IngestionClient.BatchIngestAsync(request);
+            if (_result != null)
+            {
+                Snackbar.Add($"Uploaded {_result.Successful}/{_result.TotalProcessed} records. Failed: {_result.Failed}", _result.Failed > 0 ? Severity.Warning : Severity.Success);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Upload failed");
+            Snackbar.Add($"Upload failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isUploading = false;
+        }
+    }
+
+    private static List<string> SplitCsvLine(string line)
+    {
+        // Simple CSV splitter handling quotes
+        var result = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool inQuotes = false;
+        for (int i = 0; i < line.Length; i++)
+        {
+            var ch = line[i];
+            if (ch == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    current.Append('"');
+                    i++; // skip escaped quote
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                }
+            }
+            else if (ch == ',' && !inQuotes)
+            {
+                result.Add(current.ToString());
+                current.Clear();
+            }
+            else
+            {
+                current.Append(ch);
+            }
+        }
+        result.Add(current.ToString());
+        return result;
+    }
+}

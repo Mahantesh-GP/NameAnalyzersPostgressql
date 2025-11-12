@@ -329,9 +329,20 @@ public sealed class PersonRepository : IPersonRepository
         PhoneticSearchCriteria searchCriteria,
         CancellationToken cancellationToken)
     {
-        var exactMatches = await _context.Persons
+        var exactQuery = _context.Persons
             .Include(p => p.BeiderMorseVariants)
-            .Where(p => p.NormalizedName == searchCriteria.QueryName)
+            .Where(p => p.NormalizedName == searchCriteria.QueryName);
+
+        if (searchCriteria.CountyId.HasValue)
+        {
+            exactQuery = exactQuery.Where(p => p.CountyId == searchCriteria.CountyId.Value);
+        }
+        if (searchCriteria.RecordTypeFilter.HasValue)
+        {
+            exactQuery = exactQuery.Where(p => p.Flag == searchCriteria.RecordTypeFilter.Value);
+        }
+
+        var exactMatches = await exactQuery
             .Take(searchCriteria.MaxResults)
             .ToListAsync(cancellationToken);
 
@@ -354,9 +365,14 @@ public sealed class PersonRepository : IPersonRepository
         // Primary Double Metaphone matches
         if (searchCriteria.PrimaryDoubleMetaphone != null)
         {
-            var primaryMatches = await _context.Persons
+            var primaryQuery = _context.Persons
                 .Include(p => p.BeiderMorseVariants)
-                .Where(p => p.PrimaryDoubleMetaphone == searchCriteria.PrimaryDoubleMetaphone)
+                .Where(p => p.PrimaryDoubleMetaphone == searchCriteria.PrimaryDoubleMetaphone);
+            if (searchCriteria.CountyId.HasValue)
+                primaryQuery = primaryQuery.Where(p => p.CountyId == searchCriteria.CountyId.Value);
+            if (searchCriteria.RecordTypeFilter.HasValue)
+                primaryQuery = primaryQuery.Where(p => p.Flag == searchCriteria.RecordTypeFilter.Value);
+            var primaryMatches = await primaryQuery
                 .Take(searchCriteria.MaxResults)
                 .ToListAsync(cancellationToken);
 
@@ -372,9 +388,14 @@ public sealed class PersonRepository : IPersonRepository
         // Alternate Double Metaphone matches
         if (searchCriteria.AlternateDoubleMetaphone != null)
         {
-            var alternateMatches = await _context.Persons
+            var alternateQuery = _context.Persons
                 .Include(p => p.BeiderMorseVariants)
-                .Where(p => p.AlternateDoubleMetaphone == searchCriteria.AlternateDoubleMetaphone)
+                .Where(p => p.AlternateDoubleMetaphone == searchCriteria.AlternateDoubleMetaphone);
+            if (searchCriteria.CountyId.HasValue)
+                alternateQuery = alternateQuery.Where(p => p.CountyId == searchCriteria.CountyId.Value);
+            if (searchCriteria.RecordTypeFilter.HasValue)
+                alternateQuery = alternateQuery.Where(p => p.Flag == searchCriteria.RecordTypeFilter.Value);
+            var alternateMatches = await alternateQuery
                 .Take(searchCriteria.MaxResults)
                 .ToListAsync(cancellationToken);
 
@@ -408,9 +429,14 @@ public sealed class PersonRepository : IPersonRepository
             .Select(bm => bm.PersonId)
             .Distinct();
 
-        var bmMatches = await _context.Persons
+        var bmQuery = _context.Persons
             .Include(p => p.BeiderMorseVariants)
-            .Where(p => matchingPersonIdsQuery.Contains(p.Id))
+            .Where(p => matchingPersonIdsQuery.Contains(p.Id));
+        if (searchCriteria.CountyId.HasValue)
+            bmQuery = bmQuery.Where(p => p.CountyId == searchCriteria.CountyId.Value);
+        if (searchCriteria.RecordTypeFilter.HasValue)
+            bmQuery = bmQuery.Where(p => p.Flag == searchCriteria.RecordTypeFilter.Value);
+        var bmMatches = await bmQuery
             .Take(searchCriteria.MaxResults)
             .ToListAsync(cancellationToken);
 
@@ -439,17 +465,23 @@ public sealed class PersonRepository : IPersonRepository
         // Note: In a real implementation, you would use FromSqlRaw with parameters
         // For now, using LIKE similarity as a placeholder
         // This is simplified for demonstration
-        var similarMatches = await _context.Persons
+        var similarityThreshold = searchCriteria.MinSimilarityThreshold;
+
+        var trigramQuery = _context.Persons
             .Include(p => p.BeiderMorseVariants)
-            // Use the mapped property directly so EF can apply the value converter
-            .Where(p => EF.Functions.Like(p.NormalizedName, $"%{searchCriteria.QueryName.Value}%"))
+            .Where(p => EF.Functions.TrigramsWordSimilarity(p.NormalizedName, searchCriteria.QueryName.Value) >= similarityThreshold);
+        if (searchCriteria.CountyId.HasValue)
+            trigramQuery = trigramQuery.Where(p => p.CountyId == searchCriteria.CountyId.Value);
+        if (searchCriteria.RecordTypeFilter.HasValue)
+            trigramQuery = trigramQuery.Where(p => p.Flag == searchCriteria.RecordTypeFilter.Value);
+        var similarMatches = await trigramQuery
             .OrderByDescending(p => EF.Functions.TrigramsWordSimilarity(p.NormalizedName, searchCriteria.QueryName.Value))
             .Take(searchCriteria.MaxResults)
             .ToListAsync(cancellationToken);
 
         foreach (var match in similarMatches)
         {
-            // Calculate similarity score (in real implementation, this would come from the SQL query)
+            // Calculate similarity score (kept as backup; server-side filter already enforces threshold)
             var similarity = CalculateSimpleSimilarity(match.NormalizedName.Value, searchCriteria.QueryName.Value);
             
             if (similarity >= searchCriteria.MinSimilarityThreshold)

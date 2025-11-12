@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PhoneticAnalyzers.Application.Services.Phonetic;
+using PhoneticAnalyzers.Application.Services.LLM;
 using PhoneticAnalyzers.Domain.Repositories;
 using PhoneticAnalyzers.Infrastructure.Persistence;
 using PhoneticAnalyzers.Infrastructure.Persistence.Repositories;
@@ -18,6 +19,9 @@ using MediatR;
 var host = new HostBuilder()
     .ConfigureFunctionsWorkerDefaults(builder =>
     {
+        // Add CORS middleware first
+        builder.UseMiddleware<PhoneticAnalyzers.Functions.Ingestion.Middleware.CorsMiddleware>();
+        
         // Add validation exception middleware
         builder.UseMiddleware<PhoneticAnalyzers.Functions.Ingestion.Middleware.ValidationExceptionMiddleware>();
     })
@@ -73,6 +77,13 @@ var host = new HostBuilder()
 
         // Repositories
         services.AddScoped<IPersonRepository, PersonRepository>();
+        services.AddScoped<IPersonNameRepository, PersonNameRepository>();
+
+        // Memory cache for LLM services
+        services.AddMemoryCache();
+
+        // LLM Services for name enrichment
+        services.AddLLMServices(context.Configuration);
 
         // Phonetic encoding services
         services.AddSingleton<DoubleMetaphoneEncoder>();

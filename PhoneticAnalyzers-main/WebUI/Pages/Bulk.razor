@@ -1,0 +1,72 @@
+@page "/bulk"
+@inject ISearchApiClient ApiClient
+@inject ISnackbar Snackbar
+@inject ILogger<Bulk> Logger
+
+<PageTitle>Bulk Upload - Phonetic Analyzers</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Class="mr-2" />
+    Bulk Operations
+</MudText>
+
+<MudTabs Rounded="true" Elevation="2" Class="mb-4">
+    <MudTabPanel Text="Bulk Search" Icon="@Icons.Material.Filled.Search">
+        <BulkUploadForm Model="_bulkRequest" 
+                        IsLoading="_isLoading" 
+                        OnSubmit="PerformBulkSearch" />
+        <BulkResults Response="_bulkResponse" />
+    </MudTabPanel>
+    <MudTabPanel Text="Bulk Upload" Icon="@Icons.Material.Filled.CloudUpload">
+        <BulkFileUpload />
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private BulkSearchRequest _bulkRequest = new()
+    {
+        MaxResultsPerSearch = 10,
+        MinSimilarityThreshold = 0.5
+    };
+
+    private BulkSearchResponse? _bulkResponse;
+    private bool _isLoading;
+
+    private async Task PerformBulkSearch()
+    {
+        if (!_bulkRequest.SearchTerms.Any())
+        {
+            Snackbar.Add("Please enter at least one name to search", Severity.Warning);
+            return;
+        }
+
+        _isLoading = true;
+        _bulkResponse = null;
+
+        try
+        {
+            _bulkResponse = await ApiClient.BulkSearchAsync(_bulkRequest);
+            
+            if (_bulkResponse != null)
+            {
+                Snackbar.Add(
+                    $"Completed {_bulkResponse.TotalSearches} searches in {_bulkResponse.TotalExecutionTime:F0}ms", 
+                    Severity.Success);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "HTTP error during bulk search");
+            Snackbar.Add("Network error. Please check your connection and try again.", Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Unexpected error during bulk search");
+            Snackbar.Add($"Bulk search failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

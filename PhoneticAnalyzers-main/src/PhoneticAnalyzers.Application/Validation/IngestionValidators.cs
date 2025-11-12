@@ -14,8 +14,8 @@ public sealed class IngestPersonCommandValidator : AbstractValidator<IngestPerso
     public IngestPersonCommandValidator()
     {
         RuleFor(x => x.ExternalId)
-            .NotEmpty().WithMessage("External ID is required")
-            .MaximumLength(64).WithMessage("External ID cannot exceed 64 characters");
+            .MaximumLength(64).WithMessage("External ID cannot exceed 64 characters")
+            .When(x => !string.IsNullOrEmpty(x.ExternalId));
 
         RuleFor(x => x.FullName)
             .NotEmpty().WithMessage("Full name is required")
@@ -60,8 +60,8 @@ public sealed class PersonBatchItemValidator : AbstractValidator<PersonBatchItem
     public PersonBatchItemValidator()
     {
         RuleFor(x => x.ExternalId)
-            .NotEmpty().WithMessage("External ID is required")
-            .MaximumLength(64).WithMessage("External ID cannot exceed 64 characters");
+            .MaximumLength(64).WithMessage("External ID cannot exceed 64 characters")
+            .When(x => !string.IsNullOrEmpty(x.ExternalId));
 
         RuleFor(x => x.FullName)
             .NotEmpty().WithMessage("Full name is required")

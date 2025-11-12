@@ -1,0 +1,143 @@
+@using PhoneticAnalyzers.WebUI.Models
+@inject ILogger<SearchForm> Logger
+
+<MudPaper Class="pa-4" Elevation="2">
+    <MudText Typo="Typo.h6" Class="mb-4">
+        <MudIcon Icon="@Icons.Material.Filled.Search" Class="mr-2" />
+        Search Criteria
+    </MudText>
+
+    <EditForm Model="@Model" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+        <MudGrid>
+            <!-- Name Input -->
+            <MudItem xs="12" md="6">
+                <MudTextField 
+                    @bind-Value="Model.QueryName" 
+                    Label="Name to Search" 
+                    Variant="Variant.Outlined"
+                    Required="true"
+                    Immediate="true"
+                    HelperText="Enter the full name or partial name"
+                    Adornment="Adornment.Start"
+                    AdornmentIcon="@Icons.Material.Filled.Person" />
+            </MudItem>
+
+            <!-- Max Results -->
+            <MudItem xs="6" md="3">
+                <MudNumericField 
+                    @bind-Value="Model.MaxResults" 
+                    Label="Max Results" 
+                    Variant="Variant.Outlined"
+                    Min="1"
+                    Max="200"
+                    Step="10"
+                    HelperText="1-200 results" />
+            </MudItem>
+
+            <!-- Min Similarity -->
+            <MudItem xs="6" md="3">
+                <MudNumericField 
+                    @bind-Value="Model.MinSimilarityThreshold" 
+                    Label="Min Similarity" 
+                    Variant="Variant.Outlined"
+                    Min="0"
+                    Max="1"
+                    Step="0.05"
+                    Format="F2"
+                    HelperText="0.0 - 1.0" />
+            </MudItem>
+
+            <!-- County Filter -->
+            <MudItem xs="12" md="4">
+                <MudSelect 
+                    @bind-Value="Model.CountyId" 
+                    Label="County Filter" 
+                    Variant="Variant.Outlined"
+                    Clearable="true"
+                    AdornmentIcon="@Icons.Material.Filled.LocationOn"
+                    Adornment="Adornment.Start">
+                    <MudSelectItem T="int?" Value="null">(All Counties)</MudSelectItem>
+                    @if (Counties != null)
+                    {
+                        @foreach (var county in Counties)
+                        {
+                            <MudSelectItem T="int?" Value="@county.CountyId">
+                                @county.CountyName (@county.County)
+                            </MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <!-- Record Type Filter -->
+            <MudItem xs="12" md="4">
+                <MudSelect 
+                    @bind-Value="Model.RecordType" 
+                    Label="Record Type" 
+                    Variant="Variant.Outlined"
+                    Clearable="true"
+                    AdornmentIcon="@Icons.Material.Filled.Category"
+                    Adornment="Adornment.Start">
+                    <MudSelectItem T="string?" Value="null">(All Types)</MudSelectItem>
+                    <MudSelectItem T="string?" Value="@("I")">Individual</MudSelectItem>
+                    <MudSelectItem T="string?" Value="@("B")">Business</MudSelectItem>
+                    <MudSelectItem T="string?" Value="@("U")">Unknown</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            <!-- Options -->
+            <MudItem xs="12" md="4" Class="d-flex align-center">
+                <MudStack Row Spacing="2">
+                    <MudCheckBox 
+                        @bind-Value="Model.IncludeTrigramSimilarity" 
+                        Label="Trigram"
+                        Color="Color.Primary" />
+                    <MudCheckBox 
+                        @bind-Value="Model.ExpandNicknames" 
+                        Label="Nicknames"
+                        Color="Color.Secondary" />
+                    <MudCheckBox 
+                        @bind-Value="Model.IncludeMatchDetails" 
+                        Label="Details"
+                        Color="Color.Tertiary" />
+                </MudStack>
+            </MudItem>
+
+            <!-- Submit Button -->
+            <MudItem xs="12">
+                <MudButton 
+                    ButtonType="ButtonType.Submit" 
+                    Variant="Variant.Filled" 
+                    Color="Color.Primary"
+                    Size="Size.Large"
+                    Disabled="@IsLoading"
+                    FullWidth="true">
+                    @if (IsLoading)
+                    {
+                        <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                        <MudText>Searching...</MudText>
+                    }
+                    else
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.Search" Class="mr-2" />
+                        <MudText>Search</MudText>
+                    }
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </EditForm>
+</MudPaper>
+
+@code {
+    [Parameter] public AdvancedSearchRequest Model { get; set; } = new();
+    [Parameter] public List<CountyInfo>? Counties { get; set; }
+    [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
+
+    private async Task HandleSubmit()
+    {
+        Logger.LogInformation("Search form submitted for: {QueryName}", Model.QueryName);
+        await OnSubmit.InvokeAsync();
+    }
+}

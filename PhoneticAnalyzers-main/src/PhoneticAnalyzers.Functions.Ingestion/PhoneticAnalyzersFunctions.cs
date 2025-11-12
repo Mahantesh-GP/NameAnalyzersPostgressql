@@ -282,6 +282,102 @@ public class PhoneticAnalyzersFunctions
                 }
             }
 
+            // Extract person IDs from successful results
+            var personIds = results
+                .Select(r => ((dynamic)r).personId as long?)
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .ToList();
+
+            // Trigger enrichment if there are successful ingestions
+            object? enrichmentResult = null;
+            if (personIds.Any())
+            {
+                try
+                {
+                    _logger.LogInformation("Triggering automatic enrichment for {Count} newly ingested persons", personIds.Count);
+                    
+                    using var scope = req.FunctionContext.InstanceServices.CreateScope();
+                    var batchEnrichmentService = scope.ServiceProvider.GetService<PhoneticAnalyzers.Application.Services.IBatchEnrichmentService>();
+                    var personRepo = scope.ServiceProvider.GetService<PhoneticAnalyzers.Domain.Repositories.IPersonNameRepository>();
+                    var llmService = scope.ServiceProvider.GetService<PhoneticAnalyzers.Application.Services.LLM.ILLMNameProcessingService>();
+
+                    if (batchEnrichmentService != null && personRepo != null && llmService != null)
+                    {
+                        var enrichedCount = 0;
+                        var enrichmentErrors = 0;
+
+                        foreach (var personId in personIds.Take(50)) // Limit to 50 to avoid timeout
+                        {
+                            if (ct.IsCancellationRequested) break;
+
+                            try
+                            {
+                                var person = await personRepo.GetByIdAsync(personId, ct);
+                                if (person != null)
+                                {
+                                    var analysisRequest = new PhoneticAnalyzers.Application.Services.LLM.ComprehensiveNameAnalysisRequest
+                                    {
+                                        Name = person.CanonicalName,
+                                        Surname = null,
+                                        CulturalHints = Array.Empty<string>(),
+                                        Options = new PhoneticAnalyzers.Application.Services.LLM.NameAnalysisOptions
+                                        {
+                                            IncludePhonetic = true,
+                                            IncludeCultural = true,
+                                            IncludeNicknames = true,
+                                            MaxAliases = 10
+                                        }
+                                    };
+
+                                    var analysisResult = await llmService.AnalyzeNameAsync(analysisRequest, ct);
+                                    
+                                    person.MarkAsEnriched();
+                                    await personRepo.UpdateAsync(person, ct);
+                                    enrichedCount++;
+                                }
+                            }
+                            catch (Exception enrichEx)
+                            {
+                                _logger.LogWarning(enrichEx, "Failed to enrich person {PersonId}", personId);
+                                enrichmentErrors++;
+                            }
+                        }
+
+                        enrichmentResult = new
+                        {
+                            enriched = enrichedCount,
+                            errors = enrichmentErrors,
+                            message = enrichedCount > 0 
+                                ? $"Successfully enriched {enrichedCount} names using Ollama LLM"
+                                : "No names were enriched"
+                        };
+
+                        _logger.LogInformation("Automatic enrichment completed: {Enriched} successful, {Errors} errors", 
+                            enrichedCount, enrichmentErrors);
+                    }
+                    else
+                    {
+                        enrichmentResult = new
+                        {
+                            enriched = 0,
+                            errors = 0,
+                            message = "Enrichment service not available - Ollama may not be configured or running"
+                        };
+                    }
+                }
+                catch (Exception enrichEx)
+                {
+                    _logger.LogError(enrichEx, "Error during automatic enrichment");
+                    enrichmentResult = new
+                    {
+                        enriched = 0,
+                        errors = 1,
+                        message = $"Enrichment failed: {enrichEx.Message}"
+                    };
+                }
+            }
+
             var response = req.CreateResponse(HttpStatusCode.OK);
             await response.WriteAsJsonAsync(new
             {
@@ -289,7 +385,8 @@ public class PhoneticAnalyzersFunctions
                 successful = results.Count,
                 failed = errors.Count,
                 results = results,
-                errors = errors
+                errors = errors,
+                enrichment = enrichmentResult
             }, ct);
 
             return response;
@@ -343,7 +440,16 @@ public class PhoneticAnalyzersFunctions
             var searchCommand = new SearchPersonsQuery
             {
                 QueryName = name,
-                MaxResults = maxResults
+                MaxResults = maxResults,
+                // Accept optional filters if provided in query string
+                CountyId = int.TryParse(query["countyId"], out var cid) ? cid : null,
+                RecordTypeFilter = query["recordType"]?.ToUpperInvariant() switch
+                {
+                    "I" => PhoneticAnalyzers.Domain.ValueObjects.RecordTypeFlag.Individual,
+                    "B" => PhoneticAnalyzers.Domain.ValueObjects.RecordTypeFlag.Business,
+                    "U" => PhoneticAnalyzers.Domain.ValueObjects.RecordTypeFlag.Unknown,
+                    _ => (PhoneticAnalyzers.Domain.ValueObjects.RecordTypeFlag?)null
+                }
             };
 
             var searchResults = await _mediator.Send(searchCommand, ct);
@@ -364,7 +470,7 @@ public class PhoneticAnalyzersFunctions
                     county = p.County,
                     countyId = p.CountyId,
                     countyName = p.CountyName,
-                    flag = p.Flag.ToString(),
+                    flag = ((char)p.Flag).ToString(),
                     similarityScore = p.SimilarityScore,
                     matchType = p.MatchType.ToString(),
                     phoneticCodes = p.PhoneticCodes != null ? new
@@ -525,6 +631,184 @@ public class PhoneticAnalyzersFunctions
             return errorResponse;
         }
     }
+
+    /// <summary>
+    /// Enrich names using LLM (Ollama) after batch ingestion
+    /// </summary>
+    [Function("EnrichNames")]
+    public async Task<HttpResponseData> EnrichNames(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "enrich")] HttpRequestData req,
+        CancellationToken ct)
+    {
+        _logger.LogInformation("Name enrichment requested");
+
+        try
+        {
+            var requestBody = await new StreamReader(req.Body).ReadToEndAsync(ct);
+            var enrichmentRequest = JsonSerializer.Deserialize<EnrichmentRequest>(requestBody, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            if (enrichmentRequest == null)
+            {
+                var badResponse = req.CreateResponse(HttpStatusCode.BadRequest);
+                await badResponse.WriteAsJsonAsync(new { error = "Invalid request body" }, ct);
+                return badResponse;
+            }
+
+            // Get the BatchEnrichmentService from DI
+            using var scope = req.FunctionContext.InstanceServices.CreateScope();
+            var batchEnrichmentService = scope.ServiceProvider.GetService<PhoneticAnalyzers.Application.Services.IBatchEnrichmentService>();
+
+            if (batchEnrichmentService == null)
+            {
+                var serviceErrorResponse = req.CreateResponse(HttpStatusCode.ServiceUnavailable);
+                await serviceErrorResponse.WriteAsJsonAsync(new 
+                { 
+                    error = "Batch enrichment service not available. Ensure LLM providers are configured." 
+                }, ct);
+                return serviceErrorResponse;
+            }
+
+            _logger.LogInformation("Starting enrichment for {Count} person IDs", enrichmentRequest.PersonIds?.Count ?? 0);
+
+            // If specific person IDs are provided, enrich those
+            // Otherwise, enrich recently added names
+            var personRepo = scope.ServiceProvider.GetRequiredService<PhoneticAnalyzers.Domain.Repositories.IPersonNameRepository>();
+            
+            List<PhoneticAnalyzers.Domain.Entities.PersonName> personsToEnrich;
+            
+            if (enrichmentRequest.PersonIds != null && enrichmentRequest.PersonIds.Any())
+            {
+                // Get specific persons by ID
+                personsToEnrich = new List<PhoneticAnalyzers.Domain.Entities.PersonName>();
+                foreach (var personId in enrichmentRequest.PersonIds)
+                {
+                    var person = await personRepo.GetByIdAsync(personId, ct);
+                    if (person != null)
+                    {
+                        personsToEnrich.Add(person);
+                    }
+                }
+            }
+            else
+            {
+                // Get names needing enrichment
+                var limit = enrichmentRequest.Limit ?? 100;
+                var daysOld = enrichmentRequest.EnrichmentIntervalDays ?? 30;
+                personsToEnrich = (await personRepo.GetNamesNeedingEnrichmentAsync(limit, daysOld, ct)).ToList();
+            }
+
+            if (!personsToEnrich.Any())
+            {
+                var noDataResponse = req.CreateResponse(HttpStatusCode.OK);
+                await noDataResponse.WriteAsJsonAsync(new
+                {
+                    message = "No names found for enrichment",
+                    totalProcessed = 0,
+                    successful = 0,
+                    failed = 0
+                }, ct);
+                return noDataResponse;
+            }
+
+            _logger.LogInformation("Found {Count} persons to enrich", personsToEnrich.Count);
+
+            // Process enrichment using LLM service
+            var llmService = scope.ServiceProvider.GetRequiredService<PhoneticAnalyzers.Application.Services.LLM.ILLMNameProcessingService>();
+            
+            var results = new List<object>();
+            var errors = new List<object>();
+            var startTime = DateTime.UtcNow;
+
+            foreach (var person in personsToEnrich)
+            {
+                if (ct.IsCancellationRequested)
+                {
+                    _logger.LogWarning("Enrichment cancelled by client.");
+                    break;
+                }
+
+                try
+                {
+                    // Use LLM to analyze and enrich the name
+                    var analysisRequest = new PhoneticAnalyzers.Application.Services.LLM.ComprehensiveNameAnalysisRequest
+                    {
+                        Name = person.CanonicalName,
+                        Surname = null,
+                        CulturalHints = Array.Empty<string>(),
+                        Options = new PhoneticAnalyzers.Application.Services.LLM.NameAnalysisOptions
+                        {
+                            IncludePhonetic = true,
+                            IncludeCultural = true,
+                            IncludeNicknames = true,
+                            MaxAliases = 10
+                        }
+                    };
+
+                    var analysisResult = await llmService.AnalyzeNameAsync(analysisRequest, ct);
+
+                    // Mark person as enriched
+                    person.MarkAsEnriched();
+                    await personRepo.UpdateAsync(person, ct);
+
+                    results.Add(new
+                    {
+                        personId = person.Id,
+                        canonicalName = person.CanonicalName,
+                        status = "success",
+                        aliasCount = analysisResult.CombinedAliases?.Count ?? 0,
+                        primaryCulture = analysisResult.Summary?.PrimaryCulture,
+                        confidence = analysisResult.Summary?.CulturalConfidence ?? 0.0
+                    });
+
+                    _logger.LogInformation("Successfully enriched person {PersonId}: {CanonicalName}", person.Id, person.CanonicalName);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error enriching person {PersonId}: {CanonicalName}", person.Id, person.CanonicalName);
+                    errors.Add(new
+                    {
+                        personId = person.Id,
+                        canonicalName = person.CanonicalName,
+                        error = ex.Message,
+                        status = "failed"
+                    });
+                }
+            }
+
+            var totalTime = (DateTime.UtcNow - startTime).TotalSeconds;
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new
+            {
+                success = true,
+                totalProcessed = personsToEnrich.Count,
+                successful = results.Count,
+                failed = errors.Count,
+                processingTimeSeconds = Math.Round(totalTime, 2),
+                results = results,
+                errors = errors.Take(10) // Limit errors in response
+            }, ct);
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in name enrichment");
+            
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new
+            {
+                success = false,
+                error = "Internal server error",
+                message = ex.Message
+            }, ct);
+
+            return errorResponse;
+        }
+    }
 }
 
 /// <summary>
@@ -623,4 +907,30 @@ public class BulkIngestRequest
     /// Gets or sets the source system identifier
     /// </summary>
     public string? SourceSystem { get; set; }
+}
+
+/// <summary>
+/// Request model for name enrichment using LLM
+/// </summary>
+public class EnrichmentRequest
+{
+    /// <summary>
+    /// Specific person IDs to enrich (optional - if not provided, will enrich names needing enrichment)
+    /// </summary>
+    public List<long>? PersonIds { get; set; }
+    
+    /// <summary>
+    /// Maximum number of names to enrich (default: 100)
+    /// </summary>
+    public int? Limit { get; set; }
+    
+    /// <summary>
+    /// Number of days after which enrichment is considered stale (default: 30)
+    /// </summary>
+    public int? EnrichmentIntervalDays { get; set; }
+    
+    /// <summary>
+    /// Whether to trigger enrichment automatically after batch upload
+    /// </summary>
+    public bool AutoEnrichAfterUpload { get; set; } = true;
 }

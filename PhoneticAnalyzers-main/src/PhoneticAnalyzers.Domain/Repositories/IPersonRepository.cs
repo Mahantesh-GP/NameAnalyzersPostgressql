@@ -127,6 +127,16 @@ public sealed class PhoneticSearchCriteria
     public bool IncludeTrigramSimilarity { get; }
 
     /// <summary>
+    /// Optional county filter (numeric ID)
+    /// </summary>
+    public int? CountyId { get; }
+
+    /// <summary>
+    /// Optional record type filter
+    /// </summary>
+    public RecordTypeFlag? RecordTypeFilter { get; }
+
+    /// <summary>
     /// Initializes a new instance of the PhoneticSearchCriteria class
     /// </summary>
     /// <param name="queryName">The normalized query name</param>
@@ -136,6 +146,8 @@ public sealed class PhoneticSearchCriteria
     /// <param name="maxResults">The maximum number of results to return</param>
     /// <param name="minSimilarityThreshold">The minimum similarity threshold</param>
     /// <param name="includeTrigramSimilarity">Whether to include trigram similarity search</param>
+    /// <param name="countyId">Optional county filter (numeric ID)</param>
+    /// <param name="recordTypeFilter">Optional record type filter (I, B, U)</param>
     public PhoneticSearchCriteria(
         NormalizedName queryName,
         PhoneticCode? primaryDoubleMetaphone = null,
@@ -143,7 +155,9 @@ public sealed class PhoneticSearchCriteria
         IReadOnlyList<PhoneticCode>? beiderMorseCodes = null,
         int maxResults = 100,
         double minSimilarityThreshold = 0.3,
-        bool includeTrigramSimilarity = true)
+        bool includeTrigramSimilarity = true,
+        int? countyId = null,
+        RecordTypeFlag? recordTypeFilter = null)
     {
         if (maxResults <= 0)
             throw new ArgumentException("Max results must be greater than zero", nameof(maxResults));
@@ -158,6 +172,8 @@ public sealed class PhoneticSearchCriteria
         MaxResults = maxResults;
         MinSimilarityThreshold = minSimilarityThreshold;
         IncludeTrigramSimilarity = includeTrigramSimilarity;
+        CountyId = countyId;
+        RecordTypeFilter = recordTypeFilter;
     }
 }
 

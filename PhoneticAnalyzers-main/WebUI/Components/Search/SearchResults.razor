@@ -1,0 +1,203 @@
+@using PhoneticAnalyzers.WebUI.Models
+@using PhoneticAnalyzers.WebUI.Services
+@inject ICsvExportService CsvExport
+@inject IJSRuntime JS
+
+@if (Response != null)
+{
+    <MudPaper Class="pa-4 mt-4" Elevation="2">
+        <!-- Header with Stats -->
+        <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+            <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
+                <div>
+                    <MudText Typo="Typo.h6">Search Results</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Found @Response.TotalMatches matches in @Response.ExecutionTime.ToString("F0")ms
+                    </MudText>
+                </div>
+            </MudStack>
+            
+            @if (Response.Results.Any())
+            {
+                <MudButton 
+                    Variant="Variant.Outlined" 
+                    Color="Color.Primary"
+                    StartIcon="@Icons.Material.Filled.Download"
+                    OnClick="ExportToCsv">
+                    Export CSV
+                </MudButton>
+            }
+        </MudStack>
+
+        <!-- Results Table -->
+        @if (Response.Results.Any())
+        {
+            <MudTable Items="@Response.Results" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mt-4">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>County</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Match</MudTh>
+                    <MudTh><MudTableSortLabel SortBy="new Func<SearchResult, object>(x => x.SimilarityScore)">Score</MudTableSortLabel></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">
+                        <MudText Typo="Typo.body2"><strong>@context.FullName</strong></MudText>
+                        @if (!string.IsNullOrEmpty(context.NormalizedName))
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@context.NormalizedName</MudText>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="County">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                            @context.CountyName
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Type">
+                        <MudChip T="string" Size="Size.Small" Color="GetFlagColor(context.Flag)">
+                            @GetFlagName(context.Flag)
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Match">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled">
+                            @context.MatchType
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Score">
+                        <MudProgressLinear 
+                            Color="GetScoreColor(context.SimilarityScore)" 
+                            Value="@(context.SimilarityScore * 100)" 
+                            Class="my-1" />
+                        <MudText Typo="Typo.caption">@context.SimilarityScore.ToString("P0")</MudText>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <!-- Phonetic Codes Panel -->
+            @if (Response.PhoneticCodes != null)
+            {
+                <MudExpansionPanels Class="mt-4">
+                    <MudExpansionPanel Text="Phonetic Analysis Details">
+                        <MudGrid>
+                            @if (Response.PhoneticCodes.DoubleMetaphone != null)
+                            {
+                                <MudItem xs="12" md="6">
+                                    <MudAlert Severity="Severity.Info" Dense="true">
+                                        <MudText Typo="Typo.subtitle2">Double Metaphone</MudText>
+                                        <MudText Typo="Typo.body2">
+                                            Primary: <strong>@Response.PhoneticCodes.DoubleMetaphone.Primary</strong>
+                                        </MudText>
+                                        @if (!string.IsNullOrEmpty(Response.PhoneticCodes.DoubleMetaphone.Alternate))
+                                        {
+                                            <MudText Typo="Typo.body2">
+                                                Alternate: <strong>@Response.PhoneticCodes.DoubleMetaphone.Alternate</strong>
+                                            </MudText>
+                                        }
+                                    </MudAlert>
+                                </MudItem>
+                            }
+
+                            @if (Response.PhoneticCodes.BeiderMorse?.Any() == true)
+                            {
+                                <MudItem xs="12" md="6">
+                                    <MudAlert Severity="Severity.Success" Dense="true">
+                                        <MudText Typo="Typo.subtitle2">Beider-Morse Codes</MudText>
+                                        <MudText Typo="Typo.body2">
+                                            @string.Join(", ", Response.PhoneticCodes.BeiderMorse)
+                                        </MudText>
+                                    </MudAlert>
+                                </MudItem>
+                            }
+
+                            @if (Response.PhoneticCodes.NicknameVariations?.Any() == true)
+                            {
+                                <MudItem xs="12">
+                                    <MudAlert Severity="Severity.Warning" Dense="true">
+                                        <MudText Typo="Typo.subtitle2">Nickname Variations</MudText>
+                                        <MudStack Row Spacing="1" Wrap="Wrap.Wrap">
+                                            @foreach (var nickname in Response.PhoneticCodes.NicknameVariations)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">@nickname</MudChip>
+                                            }
+                                        </MudStack>
+                                    </MudAlert>
+                                </MudItem>
+                            }
+                        </MudGrid>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-4">
+                No matches found for your search criteria. Try adjusting the similarity threshold or search term.
+            </MudAlert>
+        }
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public AdvancedSearchResponse? Response { get; set; }
+
+    private Color GetFlagColor(string flag) => flag.ToUpperInvariant() switch
+    {
+        "I" => Color.Primary,
+        "B" => Color.Secondary,
+        "U" => Color.Default,
+        _ => Color.Default
+    };
+
+    private string GetFlagName(string flag) => flag.ToUpperInvariant() switch
+    {
+        "I" => "Individual",
+        "B" => "Business",
+        "U" => "Unknown",
+        _ => flag
+    };
+
+    private Color GetScoreColor(double score) => score switch
+    {
+        >= 0.8 => Color.Success,
+        >= 0.6 => Color.Info,
+        >= 0.4 => Color.Warning,
+        _ => Color.Error
+    };
+
+    private async Task ExportToCsv()
+    {
+        if (Response?.Results == null || !Response.Results.Any())
+            return;
+
+        var headers = new[] { "Full Name", "Normalized Name", "County", "County Name", "Type", "Match Type", "Similarity Score" };
+        var csv = CsvExport.GenerateCsv(
+            Response.Results,
+            result => new[]
+            {
+                result.FullName,
+                result.NormalizedName ?? "",
+                result.County,
+                result.CountyName,
+                GetFlagName(result.Flag),
+                result.MatchType,
+                result.SimilarityScore.ToString("F4")
+            },
+            headers
+        );
+
+        var fileName = $"search-results-{DateTime.Now:yyyyMMdd-HHmmss}.csv";
+        await DownloadFile(fileName, csv);
+    }
+
+    private async Task DownloadFile(string fileName, string content)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+    }
+}
+
+
+
+

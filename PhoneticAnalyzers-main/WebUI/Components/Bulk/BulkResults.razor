@@ -1,0 +1,180 @@
+@using PhoneticAnalyzers.WebUI.Models
+@using PhoneticAnalyzers.WebUI.Services
+@inject ICsvExportService CsvExport
+@inject IJSRuntime JS
+
+@if (Response != null)
+{
+    <MudPaper Class="pa-4 mt-4" Elevation="2">
+        <!-- Summary Stats -->
+        <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+            <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.Assessment" Color="Color.Success" Size="Size.Large" />
+                <div>
+                    <MudText Typo="Typo.h6">Bulk Search Results</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Processed @Response.TotalSearches searches in @Response.TotalExecutionTime.ToString("F0")ms
+                        (avg: @Response.AverageExecutionTime.ToString("F0")ms)
+                    </MudText>
+                </div>
+            </MudStack>
+            
+            @if (Response.Results.Any())
+            {
+                <MudButton 
+                    Variant="Variant.Outlined" 
+                    Color="Color.Primary"
+                    StartIcon="@Icons.Material.Filled.Download"
+                    OnClick="ExportToCsv">
+                    Export All
+                </MudButton>
+            }
+        </MudStack>
+
+        <!-- Results Panels -->
+        <MudExpansionPanels MultiExpansion="true">
+            @foreach (var result in Response.Results)
+            {
+                <MudExpansionPanel>
+                    <TitleContent>
+                        <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="pr-4">
+                            <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                <MudIcon Icon="@(result.Error != null ? Icons.Material.Filled.Error : Icons.Material.Filled.CheckCircle)" 
+                                         Color="@(result.Error != null ? Color.Error : Color.Success)" />
+                                <div>
+                                    <MudText Typo="Typo.subtitle1"><strong>@result.SearchTerm</strong></MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @if (result.Error != null)
+                                        {
+                                            <span>Error: @result.Error</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@result.MatchCount matches in @result.ExecutionTime.ToString("F0")ms</span>
+                                        }
+                                    </MudText>
+                                </div>
+                            </MudStack>
+                            <MudChip T="string" Size="Size.Small" Color="@(result.MatchCount > 0 ? Color.Success : Color.Default)">
+                                @result.MatchCount
+                            </MudChip>
+                        </MudStack>
+                    </TitleContent>
+                    <ChildContent>
+                        @if (result.Error == null && result.TopMatches.Any())
+                        {
+                            <MudTable Items="@result.TopMatches" Dense="true" Hover="true" Elevation="0">
+                                <HeaderContent>
+                                    <MudTh>Name</MudTh>
+                                    <MudTh>County</MudTh>
+                                    <MudTh>Type</MudTh>
+                                    <MudTh>Score</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd DataLabel="Name">
+                                        <MudText Typo="Typo.body2">@context.FullName</MudText>
+                                    </MudTd>
+                                    <MudTd DataLabel="County">
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                            @context.CountyName
+                                        </MudChip>
+                                    </MudTd>
+                                    <MudTd DataLabel="Type">
+                                        <MudChip T="string" Size="Size.Small" Color="GetFlagColor(context.Flag)">
+                                            @GetFlagName(context.Flag)
+                                        </MudChip>
+                                    </MudTd>
+                                    <MudTd DataLabel="Score">
+                                        <MudProgressLinear 
+                                            Color="GetScoreColor(context.SimilarityScore)" 
+                                            Value="@(context.SimilarityScore * 100)" 
+                                            Class="my-1" />
+                                        <MudText Typo="Typo.caption">@context.SimilarityScore.ToString("P0")</MudText>
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                        else if (result.Error != null)
+                        {
+                            <MudAlert Severity="Severity.Error">@result.Error</MudAlert>
+                        }
+                        else
+                        {
+                            <MudAlert Severity="Severity.Info">No matches found</MudAlert>
+                        }
+                    </ChildContent>
+                </MudExpansionPanel>
+            }
+        </MudExpansionPanels>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public BulkSearchResponse? Response { get; set; }
+
+    private Color GetFlagColor(string flag) => flag.ToUpperInvariant() switch
+    {
+        "I" => Color.Primary,
+        "B" => Color.Secondary,
+        "U" => Color.Default,
+        _ => Color.Default
+    };
+
+    private string GetFlagName(string flag) => flag.ToUpperInvariant() switch
+    {
+        "I" => "Individual",
+        "B" => "Business",
+        "U" => "Unknown",
+        _ => flag
+    };
+
+    private Color GetScoreColor(double score) => score switch
+    {
+        >= 0.8 => Color.Success,
+        >= 0.6 => Color.Info,
+        >= 0.4 => Color.Warning,
+        _ => Color.Error
+    };
+
+    private async Task ExportToCsv()
+    {
+        if (Response?.Results == null)
+            return;
+
+        var allMatches = Response.Results
+            .Where(r => r.TopMatches != null)
+            .SelectMany(r => r.TopMatches.Select(m => new { SearchTerm = r.SearchTerm, Match = m }))
+            .ToList();
+
+        if (!allMatches.Any())
+            return;
+
+        var headers = new[] { "Search Term", "Full Name", "County", "County Name", "Type", "Similarity Score" };
+        var csv = CsvExport.GenerateCsv(
+            allMatches,
+            item => new[]
+            {
+                item.SearchTerm,
+                item.Match.FullName,
+                item.Match.County,
+                item.Match.CountyName,
+                GetFlagName(item.Match.Flag),
+                item.Match.SimilarityScore.ToString("F4")
+            },
+            headers
+        );
+
+        var fileName = $"bulk-search-results-{DateTime.Now:yyyyMMdd-HHmmss}.csv";
+        await DownloadFile(fileName, csv);
+    }
+
+    private async Task DownloadFile(string fileName, string content)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("downloadFile", fileName, base64);
+    }
+}
+
+
+

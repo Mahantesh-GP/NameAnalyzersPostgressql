@@ -1,0 +1,82 @@
+@page "/search"
+@inject ISearchApiClient ApiClient
+@inject ISnackbar Snackbar
+@inject ILogger<Search> Logger
+
+<PageTitle>Advanced Search - Phonetic Analyzers</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">
+    <MudIcon Icon="@Icons.Material.Filled.Search" Class="mr-2" />
+    Advanced Search
+</MudText>
+
+<SearchForm Model="_searchRequest" 
+            Counties="_counties" 
+            IsLoading="_isLoading" 
+            OnSubmit="PerformSearch" />
+
+<SearchResults Response="_searchResponse" />
+
+@code {
+    private AdvancedSearchRequest _searchRequest = new()
+    {
+        MaxResults = 50,
+        MinSimilarityThreshold = 0.3,
+        IncludeTrigramSimilarity = true,
+        ExpandNicknames = true,
+        IncludeMatchDetails = true
+    };
+
+    private List<CountyInfo> _counties = new();
+    private AdvancedSearchResponse? _searchResponse;
+    private bool _isLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _counties = await ApiClient.GetCountiesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load counties");
+            Snackbar.Add("Failed to load counties list. Please refresh the page.", Severity.Warning);
+        }
+    }
+
+    private async Task PerformSearch()
+    {
+        if (string.IsNullOrWhiteSpace(_searchRequest.QueryName))
+        {
+            Snackbar.Add("Please enter a name to search", Severity.Warning);
+            return;
+        }
+
+        _isLoading = true;
+        _searchResponse = null;
+
+        try
+        {
+            _searchResponse = await ApiClient.AdvancedSearchAsync(_searchRequest);
+            
+            if (_searchResponse != null)
+            {
+                Snackbar.Add($"Found {_searchResponse.TotalMatches} matches in {_searchResponse.ExecutionTime:F0}ms", Severity.Success);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Logger.LogError(ex, "HTTP error during search");
+            Snackbar.Add("Network error. Please check your connection and try again.", Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Unexpected error during search");
+            Snackbar.Add($"Search failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+}

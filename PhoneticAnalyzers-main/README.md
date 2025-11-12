@@ -39,11 +39,33 @@ git clone https://github.com/Mahantesh-GP/PhoneticAnalyzers.git
 cd PhoneticAnalyzers
 .\setup-new-repo.ps1
 
-# Run demo
+# Start PostgreSQL (ensure running on port 5432)
+
+# Start Ingestion Functions (Terminal 1)
+cd src\PhoneticAnalyzers.Functions.Ingestion
+func start  # Runs on http://localhost:7071
+
+# Start Search Functions (Terminal 2)
+cd src\PhoneticAnalyzers.Functions.Search
+func start  # Runs on http://localhost:7072
+
+# Run WebUI (Terminal 3)
+cd WebUI
+dotnet run  # Or press F5 in VS Code
+
+# Run demo app
 dotnet run --project DemoApp
 ```
 
 **[📖 Detailed Setup Guide →](DEVELOPMENT-SETUP.md)**
+
+### 🏗️ **Dual-Host Architecture**
+
+This application uses **two separate Azure Functions hosts**:
+- **Ingestion API** (port 7071): Handles data ingestion, enrichment, and basic search
+- **Search API** (port 7072): Provides advanced search, bulk search, and county filtering
+
+Both hosts must be running for full functionality. The WebUI automatically routes requests to the correct host based on configuration in `wwwroot/appsettings.json`.
 
 ---
 
