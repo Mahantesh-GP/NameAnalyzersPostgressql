@@ -33,7 +33,7 @@
         <!-- Results Table -->
         @if (Response.Results.Any())
         {
-            <MudTable Items="@Response.Results" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mt-4">
+            <MudTable Items="@Response.Results" Dense="true" Hover="true" Breakpoint="Breakpoint.Sm" Class="mt-4" Elevation="0" Bordered="false">
                 <HeaderContent>
                     <MudTh>Name</MudTh>
                     <MudTh>County</MudTh>
@@ -72,6 +72,43 @@
                         <MudText Typo="Typo.caption">@context.SimilarityScore.ToString("P0")</MudText>
                     </MudTd>
                 </RowTemplate>
+
+                <ChildRowContent>
+                    <MudPaper Class="pa-3" Elevation="0">
+                        <MudGrid>
+                            @if (context.MatchMetadata.HasValue)
+                            {
+                                <MudItem xs="12">
+                                    <MudText Typo="Typo.subtitle2">Match Details</MudText>
+                                    <MudText Typo="Typo.body2">@context.MatchMetadata?.ToString()</MudText>
+                                </MudItem>
+                            }
+
+                            @if (context.PhoneticCodes != null)
+                            {
+                                <MudItem xs="12" md="6">
+                                    <MudText Typo="Typo.subtitle2">Double Metaphone</MudText>
+                                    <MudText Typo="Typo.body2">
+                                        Primary: <strong>@context.PhoneticCodes.DoubleMetaphone?.Primary</strong>
+                                    </MudText>
+                                    @if (!string.IsNullOrEmpty(context.PhoneticCodes.DoubleMetaphone?.Alternate))
+                                    {
+                                        <MudText Typo="Typo.body2">
+                                            Alternate: <strong>@context.PhoneticCodes.DoubleMetaphone?.Alternate</strong>
+                                        </MudText>
+                                    }
+                                </MudItem>
+                                @if (context.PhoneticCodes.BeiderMorse?.Any() == true)
+                                {
+                                    <MudItem xs="12" md="6">
+                                        <MudText Typo="Typo.subtitle2">Beider–Morse</MudText>
+                                        <MudText Typo="Typo.body2">@string.Join(", ", context.PhoneticCodes.BeiderMorse)</MudText>
+                                    </MudItem>
+                                }
+                            }
+                        </MudGrid>
+                    </MudPaper>
+                </ChildRowContent>
             </MudTable>
 
             <!-- Phonetic Codes Panel -->

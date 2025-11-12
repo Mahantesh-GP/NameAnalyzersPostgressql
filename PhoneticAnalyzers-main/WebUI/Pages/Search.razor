@@ -5,10 +5,16 @@
 
 <PageTitle>Advanced Search - Phonetic Analyzers</PageTitle>
 
-<MudText Typo="Typo.h4" GutterBottom="true">
-    <MudIcon Icon="@Icons.Material.Filled.Search" Class="mr-2" />
-    Advanced Search
-</MudText>
+<MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">
+        <MudIcon Icon="@Icons.Material.Filled.Search" Class="mr-2" />
+        Advanced Search
+    </MudText>
+    <MudIconButton Icon="@Icons.Material.Filled.HelpOutline" 
+                   Color="Color.Primary" 
+                   OnClick="@(() => _showHelpDialog = true)"
+                   Title="Search Help Guide" />
+</MudStack>
 
 <SearchForm Model="_searchRequest" 
             Counties="_counties" 
@@ -16,6 +22,276 @@
             OnSubmit="PerformSearch" />
 
 <SearchResults Response="_searchResponse" />
+
+<MudDialog @bind-Visible="_showHelpDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@Icons.Material.Filled.Help" Class="mr-2" />
+            Search Help Guide
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <!-- Introduction -->
+            <MudAlert Severity="Severity.Info" Dense="true">
+                <MudText Typo="Typo.body2">
+                    <strong>Welcome to Phonetic Search!</strong> This tool finds names even with spelling variations, 
+                    typos, or phonetic similarities. Use the options below to customize your search.
+                </MudText>
+            </MudAlert>
+
+            <MudText Typo="Typo.subtitle1" Color="Color.Primary">🔍 Quick Start Examples</MudText>
+            
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true" Style="background-color: #f5f5f5;">
+                <MudText Typo="Typo.body2">
+                    <strong>Try these searches:</strong><br/>
+                    • <code>John Smith</code> - Finds exact matches and similar sounding names<br/>
+                    • <code>Robert</code> - Also finds Bob, Rob, Bobby (with Nicknames ON)<br/>
+                    • <code>Smyth</code> - Finds Smith, Smythe, Smithe (phonetic matching)<br/>
+                    • <code>Kathryn</code> - Finds Catherine, Katherine, Kathryn (sound-alike names)
+                </MudText>
+            </MudPaper>
+
+            <MudDivider />
+
+            <MudText Typo="Typo.subtitle1" Color="Color.Primary">⚙️ Search Parameters</MudText>
+            
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+                <MudStack Row AlignItems="AlignItems.Start" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Tune" Color="Color.Primary" />
+                    <div>
+                        <MudText Typo="Typo.subtitle2"><strong>Min Similarity</strong> (0.0 - 1.0)</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Controls how "fuzzy" the trigram matching is. Think of it as a tolerance slider.
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            • <strong>0.3-0.4</strong> (Default): Very permissive - catches most variations<br/>
+                            • <strong>0.5-0.6</strong>: Balanced - fewer false positives<br/>
+                            • <strong>0.7+</strong>: Strict - only very close matches<br/>
+                            <br/>
+                            <em>Example:</em> Searching "Jonathan" with 0.3 finds "Jonathon", "Johnathan", etc. 
+                            With 0.7, only very similar spellings match.
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+                <MudStack Row AlignItems="AlignItems.Start" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckBox" Color="Color.Success" />
+                    <div>
+                        <MudText Typo="Typo.subtitle2"><strong>☑️ Trigram</strong></MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Enables fuzzy string matching to catch typos and misspellings.
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            <strong>When to use:</strong><br/>
+                            ✅ Searching data with known typos or inconsistent spelling<br/>
+                            ✅ Names from manual data entry (human error)<br/>
+                            ✅ International names with multiple spellings<br/>
+                            ❌ Turn OFF if you only want exact or phonetic matches<br/>
+                            <br/>
+                            <em>Example:</em> Finds "Micheal" when searching "Michael", or "Smth" → "Smith"
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+                <MudStack Row AlignItems="AlignItems.Start" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Warning" />
+                    <div>
+                        <MudText Typo="Typo.subtitle2"><strong>☑️ Nicknames</strong></MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Automatically expands your search to include common nickname variations.
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            <strong>Nickname mappings include:</strong><br/>
+                            • Robert → Rob, Bob, Bobby<br/>
+                            • William → Will, Bill, Billy<br/>
+                            • Elizabeth → Liz, Beth, Betty<br/>
+                            • John → Johnny, Jack<br/>
+                            • Michael → Mike, Mick<br/>
+                            • And many more...<br/>
+                            <br/>
+                            <em>Example:</em> Search "Robert Smith" and also find "Bob Smith", "Bobby Smith" in results marked as "NicknameExpansion".
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+                <MudStack Row AlignItems="AlignItems.Start" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Info" />
+                    <div>
+                        <MudText Typo="Typo.subtitle2"><strong>☑️ Details</strong></MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Shows advanced phonetic analysis for each result. Great for understanding WHY names matched.
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            <strong>Includes:</strong><br/>
+                            • Double Metaphone codes (phonetic fingerprint)<br/>
+                            • Beider-Morse codes (multi-ethnic phonetics)<br/>
+                            • Match explanation details<br/>
+                            <br/>
+                            💡 <em>Tip:</em> Click any result row to expand and see its phonetic breakdown.
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+            <MudDivider />
+
+            <MudText Typo="Typo.subtitle1" Color="Color.Primary">📊 How Matching Works</MudText>
+
+            <MudAlert Severity="Severity.Normal" Dense="true">
+                <MudText Typo="Typo.body2">
+                    Results are scored and ranked from highest to lowest. Each name gets ONE score based on 
+                    the <strong>best matching method</strong> found. Higher scores = better matches.
+                </MudText>
+            </MudAlert>
+
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+                <MudStack Row AlignItems="AlignItems.Start" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Stars" Color="Color.Success" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.subtitle2"><strong>🥇 Exact</strong> (Score: 1.0)</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Perfect match - your search exactly matches the person's name (ignoring case).
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            <em>Example:</em> Search "john smith" → finds "John Smith" ✓
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+                <MudStack Row AlignItems="AlignItems.Start" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Search" Color="Color.Success" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.subtitle2"><strong>🥈 TokenContains</strong> (Score: 0.95)</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Your search term appears as a whole word inside a longer name.
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            <em>Examples:</em><br/>
+                            • "John" → finds "John Michael Smith" ✓<br/>
+                            • "Smith" → finds "Mary Jane Smith" ✓<br/>
+                            • "Mic" → does NOT find "Michael" ✗ (not a whole word)
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+                <MudStack Row AlignItems="AlignItems.Start" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Group" Color="Color.Warning" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.subtitle2"><strong>🥉 NicknameExpansion</strong> (Score: 0.93)</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Matches found using nickname variants (requires Nicknames checkbox ON).
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            <em>Examples:</em><br/>
+                            • "Robert" → finds "Bob Johnson", "Bobby Smith" ✓<br/>
+                            • "William" → finds "Bill Jones", "Billy Williams" ✓<br/>
+                            • "Elizabeth" → finds "Beth Parker", "Betty Miller" ✓
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+                <MudStack Row AlignItems="AlignItems.Start" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.VolumeUp" Color="Color.Info" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.subtitle2"><strong>PrimaryDoubleMetaphone</strong> (Score: 0.9)</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Names that sound alike using primary phonetic codes.
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            <em>Examples:</em><br/>
+                            • "Stephen" ⟷ "Steven" (both sound like "STFN")<br/>
+                            • "Philip" ⟷ "Phillip" (same pronunciation)<br/>
+                            • "Caitlin" ⟷ "Katelyn" (sound similar)
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+                <MudStack Row AlignItems="AlignItems.Start" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.RecordVoiceOver" Color="Color.Info" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.subtitle2"><strong>AlternateDoubleMetaphone</strong> (Score: 0.85)</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Alternative phonetic encodings catch more variations.
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            <em>Examples:</em><br/>
+                            • "Catherine" ⟷ "Katherine" ⟷ "Kathryn"<br/>
+                            • "Sean" ⟷ "Shawn"<br/>
+                            • "Geoffrey" ⟷ "Jeffrey"
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+                <MudStack Row AlignItems="AlignItems.Start" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Language" Color="Color.Tertiary" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.subtitle2"><strong>BeiderMorse</strong> (Score: 0.8)</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Advanced multi-language phonetic matching for international names.
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            <em>Examples:</em><br/>
+                            • "Schmidt" ⟷ "Smith" (Germanic origin)<br/>
+                            • "Garcia" ⟷ "Garsia" (Spanish phonetics)<br/>
+                            • "Ivanov" ⟷ "Ivanoff" (Slavic names)
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
+                <MudStack Row AlignItems="AlignItems.Start" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.BlurOn" Color="Color.Default" Size="Size.Large" />
+                    <div>
+                        <MudText Typo="Typo.subtitle2"><strong>TrigramSimilarity</strong> (Score: varies 0.3-0.8)</MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            Fuzzy matching for typos and spelling variations (controlled by Min Similarity).
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">
+                            <em>Examples:</em><br/>
+                            • "Micheal" → finds "Michael" ✓<br/>
+                            • "Smythe" → finds "Smith" ✓<br/>
+                            • "Jonathon" → finds "Jonathan" ✓
+                        </MudText>
+                    </div>
+                </MudStack>
+            </MudPaper>
+
+            <MudDivider />
+
+            <MudAlert Severity="Severity.Success" Dense="true">
+                <MudText Typo="Typo.body2">
+                    <strong>💡 Pro Tips:</strong><br/>
+                    • Results are sorted by score (highest first)<br/>
+                    • Each person appears ONCE with their best match type<br/>
+                    • Try lowering Min Similarity if you get too few results<br/>
+                    • Enable Nicknames to catch informal name variations<br/>
+                    • Click result rows to see phonetic codes and match details
+                </MudText>
+            </MudAlert>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => _showHelpDialog = false)">Close</MudButton>
+    </DialogActions>
+</MudDialog>
 
 @code {
     private AdvancedSearchRequest _searchRequest = new()
@@ -30,6 +306,7 @@
     private List<CountyInfo> _counties = new();
     private AdvancedSearchResponse? _searchResponse;
     private bool _isLoading;
+    private bool _showHelpDialog;
 
     protected override async Task OnInitializedAsync()
     {

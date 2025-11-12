@@ -78,6 +78,7 @@ var host = new HostBuilder()
         // Repositories
         services.AddScoped<IPersonRepository, PersonRepository>();
         services.AddScoped<IPersonNameRepository, PersonNameRepository>();
+        services.AddScoped<INicknameMapRepository, NicknameMapRepository>();
 
         // Memory cache for LLM services
         services.AddMemoryCache();

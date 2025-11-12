@@ -220,6 +220,10 @@ public class DataSeeder
                     person.ExternalId.Value, person.FullName, person.County);
             }
 
+            // Seed nickname mappings
+            logger.LogInformation("Seeding nickname mappings...");
+            await NicknameSeeder.SeedNicknamesAsync(context, logger);
+
             logger.LogInformation("Database seeding completed successfully!");
         }
         catch (Exception ex)

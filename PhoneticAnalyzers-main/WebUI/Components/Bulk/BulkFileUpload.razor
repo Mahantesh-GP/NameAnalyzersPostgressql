@@ -15,6 +15,15 @@
             <MudText Class="mt-2" Typo="Typo.body2">Select a CSV file with columns: externalId, fullName, county, countyId, countyName, flag</MudText>
         </MudItem>
 
+        <MudItem xs="12" class="mt-3">
+            <MudCheckBox T="bool" @bind-Value="_expandNicknames" 
+                         Label="Generate Nickname Variants During Upload"
+                         Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="ml-8 mt-1" Style="color: #666;">
+                Automatically creates person records for all nickname variants (e.g., William → Will, Bill, Billy, Willy, Liam)
+            </MudText>
+        </MudItem>
+
         <MudItem xs="12" class="mt-4">
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!_hasFile || _isUploading)" OnClick="Upload">
                 @if (_isUploading)
@@ -72,6 +81,7 @@
     private IBrowserFile? _file;
     private bool _hasFile;
     private bool _isUploading;
+    private bool _expandNicknames = true; // Default to true for better search coverage
     private readonly List<PersonIngestData> _preview = new();
     private BatchIngestResponse? _result;
 
@@ -117,7 +127,7 @@
                     CountyId = idxCountyId >= 0 && int.TryParse(cols.ElementAtOrDefault(idxCountyId), out var cId) ? cId : null,
                     CountyName = idxCountyName >= 0 ? cols.ElementAtOrDefault(idxCountyName) : null,
                     Flag = idxFlag >= 0 ? cols.ElementAtOrDefault(idxFlag) : "U",
-                    ExpandNicknames = true
+                    ExpandNicknames = _expandNicknames
                 };
                 if (!string.IsNullOrWhiteSpace(item.FullName))
                 {
@@ -167,7 +177,7 @@
                     CountyId = idxCountyId >= 0 && int.TryParse(cols.ElementAtOrDefault(idxCountyId), out var cId) ? cId : null,
                     CountyName = idxCountyName >= 0 ? cols.ElementAtOrDefault(idxCountyName) : null,
                     Flag = idxFlag >= 0 ? cols.ElementAtOrDefault(idxFlag) : "U",
-                    ExpandNicknames = true
+                    ExpandNicknames = _expandNicknames
                 };
                 if (!string.IsNullOrWhiteSpace(item.FullName))
                 {

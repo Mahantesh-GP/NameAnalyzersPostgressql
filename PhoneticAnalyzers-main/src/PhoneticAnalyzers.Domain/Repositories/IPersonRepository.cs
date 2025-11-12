@@ -137,6 +137,11 @@ public sealed class PhoneticSearchCriteria
     public RecordTypeFlag? RecordTypeFilter { get; }
 
     /// <summary>
+    /// Gets the nickname variants (expanded forms) to consider for matching
+    /// </summary>
+    public IReadOnlyList<string> NicknameVariants { get; }
+
+    /// <summary>
     /// Initializes a new instance of the PhoneticSearchCriteria class
     /// </summary>
     /// <param name="queryName">The normalized query name</param>
@@ -148,6 +153,7 @@ public sealed class PhoneticSearchCriteria
     /// <param name="includeTrigramSimilarity">Whether to include trigram similarity search</param>
     /// <param name="countyId">Optional county filter (numeric ID)</param>
     /// <param name="recordTypeFilter">Optional record type filter (I, B, U)</param>
+    /// <param name="nicknameVariants">Optional list of nickname variants to include as whole-token matches</param>
     public PhoneticSearchCriteria(
         NormalizedName queryName,
         PhoneticCode? primaryDoubleMetaphone = null,
@@ -157,7 +163,8 @@ public sealed class PhoneticSearchCriteria
         double minSimilarityThreshold = 0.3,
         bool includeTrigramSimilarity = true,
         int? countyId = null,
-        RecordTypeFlag? recordTypeFilter = null)
+        RecordTypeFlag? recordTypeFilter = null,
+        IReadOnlyList<string>? nicknameVariants = null)
     {
         if (maxResults <= 0)
             throw new ArgumentException("Max results must be greater than zero", nameof(maxResults));
@@ -174,6 +181,7 @@ public sealed class PhoneticSearchCriteria
         IncludeTrigramSimilarity = includeTrigramSimilarity;
         CountyId = countyId;
         RecordTypeFilter = recordTypeFilter;
+        NicknameVariants = nicknameVariants ?? Array.Empty<string>();
     }
 }
 
@@ -250,6 +258,18 @@ public enum PhoneticMatchType
     /// Match via trigram similarity
     /// </summary>
     TrigramSimilarity
+    ,
+    /// <summary>
+    /// Match where the query appears as a whole token within the full name
+    /// (e.g., searching "JOHN" matches "JOHN MICHAEL SMITH")
+    /// </summary>
+    TokenContains
+    ,
+    /// <summary>
+    /// Match produced because a nickname variant of the query appears as a whole token
+    /// (e.g., searching "ROBERT" returns a name containing "BOB" if BOB is a mapped nickname)
+    /// </summary>
+    NicknameExpansion
 }
 
 /// <summary>

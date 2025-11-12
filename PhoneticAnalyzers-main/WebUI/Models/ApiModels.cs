@@ -104,7 +104,7 @@ public class DoubleMetaphoneResult
 public class SearchResult
 {
     [JsonPropertyName("personId")]
-    public Guid PersonId { get; set; }
+    public int PersonId { get; set; }
 
     [JsonPropertyName("externalId")]
     public string? ExternalId { get; set; }
@@ -134,7 +134,7 @@ public class SearchResult
     public string MatchType { get; set; } = string.Empty;
 
     [JsonPropertyName("matchMetadata")]
-    public Dictionary<string, object>? MatchMetadata { get; set; }
+    public System.Text.Json.JsonElement? MatchMetadata { get; set; }
 
     [JsonPropertyName("phoneticCodes")]
     public PhoneticCodes? PhoneticCodes { get; set; }
@@ -194,7 +194,7 @@ public class BulkSearchResult
 public class BulkMatch
 {
     [JsonPropertyName("personId")]
-    public Guid PersonId { get; set; }
+    public int PersonId { get; set; }
 
     [JsonPropertyName("externalId")]
     public string? ExternalId { get; set; }

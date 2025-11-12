@@ -208,6 +208,9 @@ public sealed class PersonRepository : IPersonRepository
         // 1. Exact matches first
         await AddExactMatches(results, searchCriteria, cancellationToken);
 
+        // 1b. Whole-token contains matches (e.g., query "JOHN" matches "JOHN MICHAEL SMITH")
+        await AddTokenContainsMatches(results, searchCriteria, cancellationToken);
+
         // 2. Double Metaphone matches
         if (searchCriteria.PrimaryDoubleMetaphone != null)
         {
@@ -226,6 +229,12 @@ public sealed class PersonRepository : IPersonRepository
             await AddTrigramSimilarityMatches(results, searchCriteria, cancellationToken);
         }
 
+        // 5. Nickname expansion matches (whole-token) if we still have room
+        if (searchCriteria.NicknameVariants.Count > 0 && results.Count < searchCriteria.MaxResults)
+        {
+            await AddNicknameMatches(results, searchCriteria, cancellationToken);
+        }
+
         // Remove duplicates and sort by similarity score
         var uniqueResults = results
             .GroupBy(r => r.Person.Id)
@@ -241,6 +250,111 @@ public sealed class PersonRepository : IPersonRepository
             uniqueResults.Count);
 
         return uniqueResults;
+    }
+
+    /// <summary>
+    /// Adds whole-token contains matches (query must match an entire word in the name)
+    /// </summary>
+    private async Task AddTokenContainsMatches(
+        List<PhoneticSearchResult> results,
+        PhoneticSearchCriteria searchCriteria,
+        CancellationToken cancellationToken)
+    {
+        var token = searchCriteria.QueryName.Value.Trim();
+        if (token.Length < 2)
+        {
+            return;
+        }
+
+        // Build ILIKE patterns to enforce token boundaries using spaces.
+        // We assume names are normalized to upper case with single spaces between tokens.
+        var atStart = token + " %";        // e.g., "JOHN %" => JOHN <space> ...
+        var inMiddle = "% " + token + " %"; // e.g., "% JOHN %"
+        var atEnd = "% " + token;        // e.g., "% JOHN"
+
+        var query = _context.Persons
+            .Include(p => p.BeiderMorseVariants)
+            .Where(p =>
+                EF.Functions.ILike(p.NormalizedName, atStart) ||
+                EF.Functions.ILike(p.NormalizedName, inMiddle) ||
+                EF.Functions.ILike(p.NormalizedName, atEnd));
+
+        if (searchCriteria.CountyId.HasValue)
+        {
+            query = query.Where(p => p.CountyId == searchCriteria.CountyId.Value);
+        }
+        if (searchCriteria.RecordTypeFilter.HasValue)
+        {
+            query = query.Where(p => p.Flag == searchCriteria.RecordTypeFilter.Value);
+        }
+
+        var tokenMatches = await query
+            .Take(searchCriteria.MaxResults)
+            .ToListAsync(cancellationToken);
+
+        foreach (var match in tokenMatches)
+        {
+            // Give token contains matches a high score but below exact
+            results.Add(new PhoneticSearchResult(
+                match,
+                0.95,
+                PhoneticMatchType.TokenContains,
+                $"Whole-word contains: '{token}'"));
+        }
+
+        _logger.LogDebug("Found {Count} token-contains matches for token '{Token}'", tokenMatches.Count, token);
+    }
+
+    /// <summary>
+    /// Adds nickname variant whole-token matches
+    /// </summary>
+    private async Task AddNicknameMatches(
+        List<PhoneticSearchResult> results,
+        PhoneticSearchCriteria searchCriteria,
+        CancellationToken cancellationToken)
+    {
+        if (searchCriteria.NicknameVariants.Count == 0)
+            return;
+
+        var tokens = searchCriteria.NicknameVariants
+            .Select(v => v.Trim().ToUpperInvariant())
+            .Where(v => v.Length >= 2)
+            .Distinct()
+            .ToList();
+
+        if (tokens.Count == 0) return;
+
+        var totalAdded = 0;
+        foreach (var token in tokens)
+        {
+            var atStart = token + " %";
+            var inMiddle = "% " + token + " %";
+            var atEnd = "% " + token;
+
+            var q = _context.Persons
+                .Include(p => p.BeiderMorseVariants)
+                .Where(p => EF.Functions.ILike(p.NormalizedName, atStart)
+                         || EF.Functions.ILike(p.NormalizedName, inMiddle)
+                         || EF.Functions.ILike(p.NormalizedName, atEnd));
+
+            if (searchCriteria.CountyId.HasValue)
+                q = q.Where(p => p.CountyId == searchCriteria.CountyId.Value);
+            if (searchCriteria.RecordTypeFilter.HasValue)
+                q = q.Where(p => p.Flag == searchCriteria.RecordTypeFilter.Value);
+
+            var matches = await q.Take(searchCriteria.MaxResults).ToListAsync(cancellationToken);
+            foreach (var match in matches)
+            {
+                results.Add(new PhoneticSearchResult(
+                    match,
+                    0.93,
+                    PhoneticMatchType.NicknameExpansion,
+                    $"Nickname token match: '{token}'"));
+                totalAdded++;
+            }
+        }
+
+        _logger.LogDebug("Found {Count} nickname expansion matches across {TokenCount} tokens", totalAdded, tokens.Count);
     }
 
     /// <inheritdoc/>

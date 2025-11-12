@@ -16,6 +16,7 @@ public sealed class SearchPersonsQueryHandler : IRequestHandler<SearchPersonsQue
 {
     private readonly IPersonRepository _personRepository;
     private readonly IPhoneticEncodingService _phoneticService;
+    private readonly INicknameMapRepository _nicknameRepository;
     private readonly ILogger<SearchPersonsQueryHandler> _logger;
 
     /// <summary>
@@ -23,14 +24,17 @@ public sealed class SearchPersonsQueryHandler : IRequestHandler<SearchPersonsQue
     /// </summary>
     /// <param name="personRepository">The person repository</param>
     /// <param name="phoneticService">The phonetic service</param>
+    /// <param name="nicknameRepository">The nickname repository</param>
     /// <param name="logger">The logger</param>
     public SearchPersonsQueryHandler(
         IPersonRepository personRepository,
         IPhoneticEncodingService phoneticService,
+        INicknameMapRepository nicknameRepository,
         ILogger<SearchPersonsQueryHandler> logger)
     {
         _personRepository = personRepository;
         _phoneticService = phoneticService;
+        _nicknameRepository = nicknameRepository;
         _logger = logger;
     }
 
@@ -64,6 +68,10 @@ public sealed class SearchPersonsQueryHandler : IRequestHandler<SearchPersonsQue
             var phoneticResult = await _phoneticService.EncodeAsync(normalizedName);
             
             // Create search criteria
+            var nicknameVariants = request.ExpandNicknames 
+                ? await GetNicknamesFromDatabaseAsync(normalizedName.Value, cancellationToken) 
+                : new List<string>();
+
             var searchCriteria = new PhoneticSearchCriteria(
                 normalizedName,
                 phoneticResult.PrimaryDoubleMetaphone,
@@ -73,7 +81,8 @@ public sealed class SearchPersonsQueryHandler : IRequestHandler<SearchPersonsQue
                 request.MinSimilarityThreshold,
                 request.IncludeTrigramSimilarity,
                 request.CountyId,
-                request.RecordTypeFilter);
+                request.RecordTypeFilter,
+                nicknameVariants);
 
             // Perform the search
             var repositoryResults = await _personRepository.SearchByPhoneticAsync(searchCriteria, cancellationToken);
@@ -101,7 +110,7 @@ public sealed class SearchPersonsQueryHandler : IRequestHandler<SearchPersonsQue
                 PrimaryDoubleMetaphone = phoneticResult.PrimaryDoubleMetaphone?.Value,
                 AlternateDoubleMetaphone = phoneticResult.AlternateDoubleMetaphone?.Value,
                 BeiderMorseCodes = phoneticResult.BeiderMorseCodes.Select(c => c.Value).ToList(),
-                NicknameVariations = request.ExpandNicknames ? GetCommonNicknames(normalizedName.Value) : new List<string>()
+                NicknameVariations = nicknameVariants
             };
 
             stopwatch.Stop();
@@ -149,28 +158,83 @@ public sealed class SearchPersonsQueryHandler : IRequestHandler<SearchPersonsQue
     }
 
     /// <summary>
-    /// Gets common nicknames for a given name
+    /// Gets nicknames from database for a given name, with fallback to hardcoded list
     /// </summary>
-    private static List<string> GetCommonNicknames(string name)
+    private async Task<List<string>> GetNicknamesFromDatabaseAsync(string name, CancellationToken cancellationToken)
     {
-        // This is a simple implementation - in a real system you'd have a comprehensive nickname database
         var nicknames = new List<string>();
         
+        try
+        {
+            // Extract individual name tokens (e.g., "JOHN SMITH" -> ["JOHN", "SMITH"])
+            var nameTokens = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            
+            foreach (var token in nameTokens)
+            {
+                // Query database for nicknames of this canonical name
+                var nicknameMappings = await _nicknameRepository.GetNicknamesAsync(token, locale: null, cancellationToken);
+                
+                foreach (var mapping in nicknameMappings)
+                {
+                    var nickname = mapping.Nickname;
+                    if (!string.IsNullOrWhiteSpace(nickname) && !nicknames.Contains(nickname, StringComparer.OrdinalIgnoreCase))
+                    {
+                        nicknames.Add(nickname.ToUpperInvariant());
+                    }
+                }
+
+                // Also check reverse: if the token itself is a nickname, get the canonical name variants
+                var canonicalMappings = await _nicknameRepository.GetCanonicalNamesAsync(token, locale: null, cancellationToken);
+                
+                foreach (var mapping in canonicalMappings)
+                {
+                    var canonical = mapping.CanonicalName;
+                    if (!string.IsNullOrWhiteSpace(canonical) && !nicknames.Contains(canonical, StringComparer.OrdinalIgnoreCase))
+                    {
+                        nicknames.Add(canonical.ToUpperInvariant());
+                    }
+                }
+            }
+
+            _logger.LogDebug("Found {Count} nickname variants for name: {Name}", nicknames.Count, name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error retrieving nicknames from database for name: {Name}. Using fallback.", name);
+            // Fallback to hardcoded nicknames if database query fails
+            nicknames = GetCommonNicknamesFallback(name);
+        }
+
+        // If no database results, use fallback
+        if (nicknames.Count == 0)
+        {
+            nicknames = GetCommonNicknamesFallback(name);
+        }
+
+        return nicknames;
+    }
+
+    /// <summary>
+    /// Fallback method with hardcoded common nicknames (used when database is unavailable or empty)
+    /// </summary>
+    private List<string> GetCommonNicknamesFallback(string name)
+    {
+        var nicknames = new List<string>();
         var nameLower = name.ToLowerInvariant();
         
-        // Simple nickname mappings
+        // Hardcoded fallback nickname mappings
         var nicknameMap = new Dictionary<string, string[]>
         {
-            { "robert", new[] { "rob", "bob", "bobby" } },
-            { "william", new[] { "will", "bill", "billy" } },
-            { "richard", new[] { "rick", "dick" } },
-            { "michael", new[] { "mike", "mick" } },
-            { "james", new[] { "jim", "jimmy" } },
-            { "john", new[] { "johnny", "jack" } },
-            { "elizabeth", new[] { "liz", "beth", "betty" } },
-            { "margaret", new[] { "maggie", "meg", "peggy" } },
-            { "catherine", new[] { "kate", "cathy" } },
-            { "christopher", new[] { "chris", "kit" } }
+            { "robert", new[] { "ROB", "BOB", "BOBBY" } },
+            { "william", new[] { "WILL", "BILL", "BILLY" } },
+            { "richard", new[] { "RICK", "DICK" } },
+            { "michael", new[] { "MIKE", "MICK" } },
+            { "james", new[] { "JIM", "JIMMY" } },
+            { "john", new[] { "JOHNNY", "JACK" } },
+            { "elizabeth", new[] { "LIZ", "BETH", "BETTY" } },
+            { "margaret", new[] { "MAGGIE", "MEG", "PEGGY" } },
+            { "catherine", new[] { "KATE", "CATHY" } },
+            { "christopher", new[] { "CHRIS", "KIT" } }
         };
 
         if (nicknameMap.ContainsKey(nameLower))
@@ -178,6 +242,7 @@ public sealed class SearchPersonsQueryHandler : IRequestHandler<SearchPersonsQue
             nicknames.AddRange(nicknameMap[nameLower]);
         }
 
+        _logger.LogDebug("Using fallback nicknames for name: {Name}. Found {Count} variants.", name, nicknames.Count);
         return nicknames;
     }
 }
