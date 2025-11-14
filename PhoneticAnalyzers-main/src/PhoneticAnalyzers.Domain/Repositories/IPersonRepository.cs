@@ -78,6 +78,15 @@ public interface IPersonRepository
     Task<long> GetCountAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets name suggestions for autocomplete based on prefix
+    /// </summary>
+    /// <param name="prefix">The name prefix to search for</param>
+    /// <param name="maxSuggestions">Maximum number of suggestions to return</param>
+    /// <param name="cancellationToken">The cancellation token</param>
+    /// <returns>List of distinct name suggestions</returns>
+    Task<List<string>> GetNameSuggestionsAsync(string prefix, int maxSuggestions = 10, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Checks if a person exists with the given external ID
     /// </summary>
     /// <param name="externalId">The external ID to check</param>

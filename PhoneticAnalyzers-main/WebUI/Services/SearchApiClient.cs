@@ -12,6 +12,7 @@ public interface ISearchApiClient
     Task<AdvancedSearchResponse?> AdvancedSearchAsync(AdvancedSearchRequest request, CancellationToken cancellationToken = default);
     Task<BulkSearchResponse?> BulkSearchAsync(BulkSearchRequest request, CancellationToken cancellationToken = default);
     Task<List<CountyInfo>> GetCountiesAsync(CancellationToken cancellationToken = default);
+    Task<List<string>> GetNameSuggestionsAsync(string prefix, int maxSuggestions = 10, CancellationToken cancellationToken = default);
     Task<bool> HealthCheckAsync(CancellationToken cancellationToken = default);
 }
 
@@ -131,6 +132,43 @@ public class SearchApiClient : ISearchApiClient
         }
     }
 
+    public async Task<List<string>> GetNameSuggestionsAsync(string prefix, int maxSuggestions = 10, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(prefix) || prefix.Length < 2)
+            {
+                return new List<string>();
+            }
+
+            _logger.LogInformation("Fetching name suggestions for prefix: {Prefix}", prefix);
+
+            var response = await _httpClient.GetAsync(
+                $"api/search/suggestions?prefix={Uri.EscapeDataString(prefix)}&maxSuggestions={maxSuggestions}",
+                cancellationToken);
+
+            response.EnsureSuccessStatusCode();
+
+            var result = await response.Content.ReadFromJsonAsync<SuggestionsResponse>(
+                cancellationToken: cancellationToken);
+
+            _logger.LogInformation("Fetched {Count} suggestions for prefix: {Prefix}", 
+                result?.Suggestions?.Count ?? 0, prefix);
+
+            return result?.Suggestions ?? new List<string>();
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error while fetching suggestions for: {Prefix}", prefix);
+            return new List<string>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error while fetching suggestions for: {Prefix}", prefix);
+            return new List<string>();
+        }
+    }
+
     public async Task<bool> HealthCheckAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -144,4 +182,6 @@ public class SearchApiClient : ISearchApiClient
             return false;
         }
     }
+
+    private record SuggestionsResponse(List<string> Suggestions);
 }

@@ -61,6 +61,57 @@ public class SearchFunctions
     }
 
     /// <summary>
+    /// Get name suggestions for autocomplete
+    /// </summary>
+    [Function("GetNameSuggestions")]
+    public async Task<HttpResponseData> GetNameSuggestions(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "search/suggestions")] HttpRequestData req,
+        CancellationToken ct)
+    {
+        _logger.LogInformation("Name suggestions requested");
+
+        try
+        {
+            var query = System.Web.HttpUtility.ParseQueryString(req.Url.Query);
+            var prefix = query["prefix"];
+            var maxSuggestionsStr = query["maxSuggestions"];
+
+            if (string.IsNullOrWhiteSpace(prefix) || prefix.Length < 2)
+            {
+                var badResponse = req.CreateResponse(HttpStatusCode.OK);
+                await badResponse.WriteAsJsonAsync(new { suggestions = Array.Empty<string>() }, ct);
+                return badResponse;
+            }
+
+            int maxSuggestions = 10;
+            if (!string.IsNullOrWhiteSpace(maxSuggestionsStr) && int.TryParse(maxSuggestionsStr, out var parsed))
+            {
+                maxSuggestions = Math.Clamp(parsed, 1, 50);
+            }
+
+            var suggestionsQuery = new GetNameSuggestionsQuery
+            {
+                Prefix = prefix,
+                MaxSuggestions = maxSuggestions
+            };
+
+            var result = await _mediator.Send(suggestionsQuery, ct);
+
+            var response = req.CreateResponse(HttpStatusCode.OK);
+            await response.WriteAsJsonAsync(new { suggestions = result.Suggestions }, ct);
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting name suggestions");
+            var errorResponse = req.CreateResponse(HttpStatusCode.InternalServerError);
+            await errorResponse.WriteAsJsonAsync(new { error = "An error occurred while getting suggestions" }, ct);
+            return errorResponse;
+        }
+    }
+
+    /// <summary>
     /// Advanced search with multiple criteria
     /// </summary>
     [Function("AdvancedSearch")]

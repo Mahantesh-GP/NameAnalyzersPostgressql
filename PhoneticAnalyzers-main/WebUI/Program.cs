@@ -13,22 +13,23 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Configure base URLs
-var ingestionBaseUrl = builder.Configuration["ApiSettings:BaseUrl"] ?? "http://localhost:7071";
-var searchBaseUrl = builder.Configuration["SearchApiSettings:BaseUrl"] ?? "http://localhost:7072";
-
-// Default HttpClient targets ingestion API
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(ingestionBaseUrl) });
 
 // Register MudBlazor services
 builder.Services.AddMudServices();
 
-// Register application services
-builder.Services.AddScoped<IIngestionApiClient, IngestionApiClient>();
+// Register ApiClientFactory for dual-mode backend selection
+builder.Services.AddSingleton<IApiClientFactory, ApiClientFactory>();
+
+// Register application services using the factory
+builder.Services.AddScoped<IIngestionApiClient>(sp =>
+{
+	var factory = sp.GetRequiredService<IApiClientFactory>();
+	return factory.CreateIngestionClient(sp);
+});
 builder.Services.AddScoped<ISearchApiClient>(sp =>
 {
-	var logger = sp.GetRequiredService<ILogger<SearchApiClient>>();
-	return new SearchApiClient(new HttpClient { BaseAddress = new Uri(searchBaseUrl) }, logger);
+	var factory = sp.GetRequiredService<IApiClientFactory>();
+	return factory.CreateSearchClient(sp);
 });
 builder.Services.AddScoped<ICsvExportService, CsvExportService>();
 builder.Services.AddSingleton<SearchStateService>();

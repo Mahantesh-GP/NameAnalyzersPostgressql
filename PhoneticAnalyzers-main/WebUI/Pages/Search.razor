@@ -19,7 +19,8 @@
 <SearchForm Model="_searchRequest" 
             Counties="_counties" 
             IsLoading="_isLoading" 
-            OnSubmit="PerformSearch" />
+            OnSubmit="PerformSearch"
+            OnClear="ClearSearch" />
 
 <SearchResults Response="_searchResponse" />
 
@@ -355,5 +356,12 @@
         {
             _isLoading = false;
         }
+    }
+
+    private Task ClearSearch()
+    {
+        _searchResponse = null;
+        Snackbar.Add("Search cleared", Severity.Info);
+        return Task.CompletedTask;
     }
 }

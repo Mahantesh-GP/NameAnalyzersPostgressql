@@ -1,5 +1,8 @@
+@using MudBlazor
 @using PhoneticAnalyzers.WebUI.Models
+@using PhoneticAnalyzers.WebUI.Services
 @inject ILogger<SearchForm> Logger
+@inject ISearchApiClient SearchApi
 
 <MudPaper Class="pa-4" Elevation="2">
     <MudText Typo="Typo.h6" Class="mb-4">
@@ -10,17 +13,24 @@
     <EditForm Model="@Model" OnValidSubmit="HandleSubmit">
         <DataAnnotationsValidator />
         <MudGrid>
-            <!-- Name Input -->
+            <!-- Name Input with Autocomplete -->
             <MudItem xs="12" md="6">
-                <MudTextField 
+                <MudAutocomplete 
+                    T="string"
                     @bind-Value="Model.QueryName" 
                     Label="Name to Search" 
                     Variant="Variant.Outlined"
                     Required="true"
-                    Immediate="true"
-                    HelperText="Enter the full name or partial name"
+                    SearchFunc="@SearchNames"
+                    DebounceInterval="200"
+                    ResetValueOnEmptyText="false"
+                    CoerceText="false"
+                    CoerceValue="false"
+                    HelperText="Start typing to see suggestions (min 2 characters)"
                     Adornment="Adornment.Start"
-                    AdornmentIcon="@Icons.Material.Filled.Person" />
+                    AdornmentIcon="@Icons.Material.Filled.Person"
+                    MinCharacters="2"
+                    MaxItems="10" />
             </MudItem>
 
             <!-- Max Results -->
@@ -104,18 +114,18 @@
                 </MudStack>
             </MudItem>
 
-            <!-- Submit Button -->
-            <MudItem xs="12">
+            <!-- Submit and Clear Buttons -->
+            <MudItem xs="12" Class="d-flex justify-center gap-3">
                 <MudButton 
                     ButtonType="ButtonType.Submit" 
                     Variant="Variant.Filled" 
                     Color="Color.Primary"
-                    Size="Size.Large"
+                    Size="Size.Medium"
                     Disabled="@IsLoading"
-                    FullWidth="true">
+                    Style="box-shadow: 0 3px 12px 0 rgba(34,197,94,0.10), 0 1.5px 4px 0 rgba(59,130,246,0.10); border-radius: 10px; font-weight: 600; letter-spacing: 0.5px; background: linear-gradient(90deg, #22d3ee 0%, #3b82f6 100%); padding: 10px 32px;">
                     @if (IsLoading)
                     {
-                        <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                        <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" Color="Color.Secondary" />
                         <MudText>Searching...</MudText>
                     }
                     else
@@ -123,6 +133,16 @@
                         <MudIcon Icon="@Icons.Material.Filled.Search" Class="mr-2" />
                         <MudText>Search</MudText>
                     }
+                </MudButton>
+                <MudButton 
+                    Variant="Variant.Outlined" 
+                    Color="Color.Default"
+                    Size="Size.Medium"
+                    Disabled="@IsLoading"
+                    OnClick="@ClearForm"
+                    Style="border-radius: 10px; font-weight: 600; letter-spacing: 0.5px; padding: 10px 32px;">
+                    <MudIcon Icon="@Icons.Material.Filled.Clear" Class="mr-2" />
+                    <MudText>Clear</MudText>
                 </MudButton>
             </MudItem>
         </MudGrid>
@@ -134,10 +154,46 @@
     [Parameter] public List<CountyInfo>? Counties { get; set; }
     [Parameter] public bool IsLoading { get; set; }
     [Parameter] public EventCallback OnSubmit { get; set; }
+    [Parameter] public EventCallback OnClear { get; set; }
 
     private async Task HandleSubmit()
     {
         Logger.LogInformation("Search form submitted for: {QueryName}", Model.QueryName);
         await OnSubmit.InvokeAsync();
+    }
+
+    private async Task ClearForm()
+    {
+        Logger.LogInformation("Clearing search form");
+        Model.QueryName = string.Empty;
+        Model.MaxResults = 10;
+        Model.MinSimilarityThreshold = 0.5;
+        Model.CountyId = null;
+        Model.RecordType = null;
+        Model.IncludeTrigramSimilarity = true;
+        Model.ExpandNicknames = true;
+        Model.IncludeMatchDetails = true;
+        
+        await OnClear.InvokeAsync();
+        StateHasChanged();
+    }
+
+    private async Task<IEnumerable<string>> SearchNames(string value, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(value) || value.Length < 2)
+        {
+            return Array.Empty<string>();
+        }
+
+        try
+        {
+            var suggestions = await SearchApi.GetNameSuggestionsAsync(value, 10, cancellationToken);
+            return suggestions;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error fetching name suggestions for: {Prefix}", value);
+            return Array.Empty<string>();
+        }
     }
 }

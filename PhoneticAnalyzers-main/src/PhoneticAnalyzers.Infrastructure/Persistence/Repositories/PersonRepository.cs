@@ -421,6 +421,39 @@ public sealed class PersonRepository : IPersonRepository
     }
 
     /// <inheritdoc/>
+    public async Task<List<string>> GetNameSuggestionsAsync(string prefix, int maxSuggestions = 10, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(prefix) || prefix.Length < 2)
+        {
+            return new List<string>();
+        }
+
+        var normalizedPrefix = prefix.Trim().ToLowerInvariant();
+
+        // Use raw SQL to query the normalized_name column directly
+        // This avoids EF Core translation issues with value object properties
+        // ILIKE is case-insensitive in PostgreSQL
+        // Using a subquery with LIMIT before DISTINCT for better performance
+        var sql = @"
+            SELECT full_name 
+            FROM (
+                SELECT DISTINCT ON (full_name) full_name
+                FROM person 
+                WHERE normalized_name ILIKE {0} || '%'
+                ORDER BY full_name
+                LIMIT {1}
+            ) subq";
+
+        var suggestions = await _context.Database
+            .SqlQueryRaw<string>(sql, normalizedPrefix, maxSuggestions)
+            .ToListAsync(cancellationToken);
+
+        _logger.LogDebug("Found {Count} name suggestions for prefix: {Prefix}", suggestions.Count, prefix);
+
+        return suggestions;
+    }
+
+    /// <inheritdoc/>
     public async Task<bool> ExistsAsync(ExternalId externalId, CancellationToken cancellationToken = default)
     {
         if (externalId == null)
