@@ -91,13 +91,27 @@ public class NativeDatabaseService : INativeDatabaseService
             await using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(cancellationToken);
 
+            // Resolve CountyId to county name if provided
+            string? countyName = null;
+            if (request.CountyId.HasValue)
+            {
+                await using var countyCmd = new NpgsqlCommand(
+                    "SELECT county FROM person WHERE county IS NOT NULL GROUP BY county ORDER BY county LIMIT 1 OFFSET $1",
+                    connection);
+                countyCmd.Parameters.AddWithValue(request.CountyId.Value - 1); // CountyId is 1-based
+                var result = await countyCmd.ExecuteScalarAsync(cancellationToken);
+                countyName = result?.ToString();
+            }
+
             await using var cmd = new NpgsqlCommand(
-                "SELECT * FROM search_persons($1, $2, $3)",
+                "SELECT * FROM search_persons($1, $2, $3, $4, $5)",
                 connection);
 
             cmd.Parameters.AddWithValue(request.QueryName);
             cmd.Parameters.AddWithValue(request.MaxResults);
             cmd.Parameters.AddWithValue(request.MinSimilarity);
+            cmd.Parameters.AddWithValue(countyName ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue(request.RecordType ?? (object)DBNull.Value);
 
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 

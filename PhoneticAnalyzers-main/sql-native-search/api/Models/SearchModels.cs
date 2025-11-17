@@ -15,6 +15,12 @@ public class SearchRequest
     
     [JsonPropertyName("minSimilarityThreshold")]
     public double MinSimilarity { get; set; } = 0.3;
+    
+    [JsonPropertyName("countyId")]
+    public int? CountyId { get; set; }
+    
+    [JsonPropertyName("recordType")]
+    public string? RecordType { get; set; }
 }
 
 /// <summary>
