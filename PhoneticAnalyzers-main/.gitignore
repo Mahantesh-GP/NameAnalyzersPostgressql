@@ -58,14 +58,16 @@ publish/
 *.zip
 *.nupkg
 
-# Ignore Bicep compiled files
-*.json
-!host.json
-!package.json
-!tsconfig.json
-!local.settings.example.json
+# Ignore Bicep compiled files (scoped narrowly to infra outputs)
+infra/**/*.json
+infra/**/bicepConfig.json
+infra/**/bicepconfig.json
 
 # Keep example configuration files
 !*example*
 !*template*
 !*sample*
+
+# Allow baseline appsettings files across the repo
+!**/appsettings.json
+!WebUI/wwwroot/appsettings.json

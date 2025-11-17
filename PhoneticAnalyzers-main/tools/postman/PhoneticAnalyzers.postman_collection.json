@@ -1,0 +1,96 @@
+{
+  "info": {
+    "_postman_id": "5f59a4a1-3a30-4b7b-93f8-9adf2f7c0abc",
+    "name": "PhoneticAnalyzers Local",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Local endpoints for PhoneticAnalyzers Search & Ingestion functions"
+  },
+  "item": [
+    {
+      "name": "Search - Health",
+      "request": {
+        "method": "GET",
+        "header": [
+          {"key": "Accept", "value": "application/json"}
+        ],
+        "url": {
+          "raw": "{{base_search}}/api/search/health",
+          "host": ["{{base_search}}"],
+          "path": ["api", "search", "health"]
+        }
+      }
+    },
+    {
+      "name": "Search - Get Counties",
+      "request": {
+        "method": "GET",
+        "header": [
+          {"key": "Accept", "value": "application/json"}
+        ],
+        "url": {
+          "raw": "{{base_search}}/api/counties",
+          "host": ["{{base_search}}"],
+          "path": ["api", "counties"]
+        }
+      }
+    },
+    {
+      "name": "Search - Advanced",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"},
+          {"key": "Accept", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"queryName\": \"john\",\n  \"maxResults\": 50,\n  \"minSimilarityThreshold\": 0.2,\n  \"includeTrigramSimilarity\": true,\n  \"expandNicknames\": true,\n  \"includeMatchDetails\": false,\n  \"countyId\": 33,\n  \"recordType\": \"I\"\n}"
+        },
+        "url": {
+          "raw": "{{base_search}}/api/search/advanced",
+          "host": ["{{base_search}}"],
+          "path": ["api", "search", "advanced"]
+        }
+      }
+    },
+    {
+      "name": "Search - Bulk",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"},
+          {"key": "Accept", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"searchTerms\": [\"john\", \"john smith\", \"robinson\"],\n  \"maxResultsPerSearch\": 10,\n  \"minSimilarityThreshold\": 0.3\n}"
+        },
+        "url": {
+          "raw": "{{base_search}}/api/search/bulk",
+          "host": ["{{base_search}}"],
+          "path": ["api", "search", "bulk"]
+        }
+      }
+    },
+    {
+      "name": "Ingestion - DB Check",
+      "request": {
+        "method": "GET",
+        "header": [
+          {"key": "Accept", "value": "application/json"}
+        ],
+        "url": {
+          "raw": "{{base_ingestion}}/api/db-check",
+          "host": ["{{base_ingestion}}"],
+          "path": ["api", "db-check"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {"key": "search_port", "value": "7072"},
+    {"key": "ingestion_port", "value": "7071"},
+    {"key": "base_search", "value": "http://localhost:{{search_port}}"},
+    {"key": "base_ingestion", "value": "http://localhost:{{ingestion_port}}"}
+  ]
+}
