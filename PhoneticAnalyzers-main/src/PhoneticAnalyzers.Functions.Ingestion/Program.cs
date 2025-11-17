@@ -85,6 +85,8 @@ var host = new HostBuilder()
 
         // LLM Services for name enrichment
         services.AddLLMServices(context.Configuration);
+        // Add distributed cache support for LLM caching (falls back to in-memory if Redis not configured)
+        services.AddLLMRedisCache(context.Configuration);
 
         // Phonetic encoding services
         services.AddSingleton<DoubleMetaphoneEncoder>();

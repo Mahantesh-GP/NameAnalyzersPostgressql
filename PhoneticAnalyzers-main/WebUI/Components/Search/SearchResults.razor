@@ -333,6 +333,12 @@
                 return metadata.GetString() ?? string.Empty;
             }
             
+            // Native SQL approach: Check for displayText first
+            if (metadata.TryGetProperty("displayText", out var displayText))
+            {
+                return displayText.GetString() ?? string.Empty;
+            }
+            
             // Database-First approach: MatchMetadata is a JSON object
             var matchType = metadata.TryGetProperty("matchType", out var mt) ? mt.GetString() : result.MatchType;
             var matchedField = metadata.TryGetProperty("matchedField", out var mf) ? mf.GetString() : null;

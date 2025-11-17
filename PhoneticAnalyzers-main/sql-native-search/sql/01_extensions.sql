@@ -1,0 +1,4 @@
+-- Enable required extensions (idempotent)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+CREATE EXTENSION IF NOT EXISTS unaccent;

@@ -17,16 +17,17 @@
             <MudItem xs="12" md="6">
                 <MudAutocomplete 
                     T="string"
-                    @bind-Value="Model.QueryName" 
+                    @bind-Value="Model.QueryName"
+                    @bind-Text="Model.QueryName"
                     Label="Name to Search" 
                     Variant="Variant.Outlined"
-                    Required="true"
                     SearchFunc="@SearchNames"
-                    DebounceInterval="200"
+                    DebounceInterval="300"
                     ResetValueOnEmptyText="false"
-                    CoerceText="false"
+                    CoerceText="true"
                     CoerceValue="false"
-                    HelperText="Start typing to see suggestions (min 2 characters)"
+                    Clearable="true"
+                    HelperText="Type a name to see suggestions"
                     Adornment="Adornment.Start"
                     AdornmentIcon="@Icons.Material.Filled.Person"
                     MinCharacters="2"
@@ -107,10 +108,6 @@
                         @bind-Value="Model.ExpandNicknames" 
                         Label="Nicknames"
                         Color="Color.Secondary" />
-                    <MudCheckBox 
-                        @bind-Value="Model.IncludeMatchDetails" 
-                        Label="Details"
-                        Color="Color.Tertiary" />
                 </MudStack>
             </MudItem>
 
@@ -158,6 +155,16 @@
 
     private async Task HandleSubmit()
     {
+        // Manual validation for query name
+        if (string.IsNullOrWhiteSpace(Model.QueryName))
+        {
+            Logger.LogWarning("Search attempted with empty query name");
+            return;
+        }
+
+        // Always include match details
+        Model.IncludeMatchDetails = true;
+
         Logger.LogInformation("Search form submitted for: {QueryName}", Model.QueryName);
         await OnSubmit.InvokeAsync();
     }
@@ -172,7 +179,7 @@
         Model.RecordType = null;
         Model.IncludeTrigramSimilarity = true;
         Model.ExpandNicknames = true;
-        Model.IncludeMatchDetails = true;
+        Model.IncludeMatchDetails = true;  // Always true
         
         await OnClear.InvokeAsync();
         StateHasChanged();
