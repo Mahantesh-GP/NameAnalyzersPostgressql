@@ -2,43 +2,44 @@
 
 ## Summary
 
-You now have **three independent APIs** for phonetic search, each with different trade-offs. They all work with the same PostgreSQL database (different schemas/databases) and can share the **same Blazor WebUI**.
+You now have **two independent APIs** for phonetic search, each with different trade-offs. They both work with PostgreSQL databases and can share the **same Blazor WebUI**.
 
 ```
                     ┌─────────────────────┐
                     │   Blazor WebUI      │
-                    │   (Port 5000/5001)  │
+                    │   (Port 5301)       │
                     └──────────┬──────────┘
                                │
             ┌──────────────────┼──────────────────┐
-            │                  │                  │
-     ┌──────▼──────┐   ┌──────▼──────┐   ┌──────▼──────────┐
-     │ EF Core API │   │  DB First   │   │  Native SQL API │
-     │ Port 7071   │   │  Port 7073  │   │  Port 5100      │
-     └──────┬──────┘   └──────┬──────┘   └──────┬──────────┘
-            │                  │                  │
-            └──────────────────┼──────────────────┘
-                               │
-                    ┌──────────▼──────────┐
-                    │    PostgreSQL       │
-                    │ Multiple Databases  │
-                    └─────────────────────┘
+            │                                     │
+     ┌──────▼──────────┐              ┌──────────▼──────────┐
+     │ EF Core API     │              │  Native SQL API ⭐  │
+     │ (Azure Func)    │              │  (ASP.NET Core)     │
+     │ Port 7071-7072  │              │  Port 5100          │
+     └──────┬──────────┘              └──────┬──────────────┘
+            │                                │
+            └────────────────┬───────────────┘
+                             │
+                  ┌──────────▼──────────┐
+                  │    PostgreSQL       │
+                  │ Multiple Databases  │
+                  └─────────────────────┘
 ```
 
 ## API Comparison
 
-| Feature | EF Core API | DB First API | Native SQL API ⭐ |
-|---------|-------------|--------------|-------------------|
-| **Location** | `src/PhoneticAnalyzers.Functions.*` | `SQLDBFirst/` | `sql-native-search/api/` |
-| **Port** | 7071-7072 | 7073-7074 | 5100 |
-| **Technology** | EF Core + LINQ | EF Core (scaffolded) | Raw SQL + Npgsql |
-| **Database** | PhoneticAnalyzersDb | PhoneticAnalyzersDb | phonetic_native |
-| **ORM Overhead** | Yes | Yes | No |
-| **Performance (100K)** | ~200ms search | ~200ms search | ~20ms search |
-| **Performance (1B)** | N/A | N/A | ~50ms search |
-| **Bulk Ingest** | Slow (batched HTTP) | Slow (batched HTTP) | Fast (COPY + staging) |
-| **Best For** | Development/Testing | Migration from existing DB | Production at scale |
-| **Setup Complexity** | Medium | Medium | Low |
+| Feature | EF Core API | Native SQL API ⭐ |
+|---------|-------------|-------------------|
+| **Location** | `src/PhoneticAnalyzers.Functions.*` | `sql-native-search/api/` |
+| **Port** | 7071-7072 | 5100 |
+| **Technology** | EF Core + LINQ | Raw SQL + Npgsql |
+| **Database** | PhoneticAnalyzersDb | phonetic_native |
+| **ORM Overhead** | Yes | No |
+| **Performance (100K)** | ~200ms search | ~20ms search |
+| **Performance (2M+)** | Slow | ~50ms search |
+| **Bulk Ingest** | Slow (batched HTTP) | Fast (COPY + staging) |
+| **Best For** | Development/Testing | Production at scale |
+| **Setup Complexity** | Medium | Low |
 
 ## When to Use Which?
 
@@ -49,87 +50,77 @@ You now have **three independent APIs** for phonetic search, each with different
 - ✅ Rapid prototyping
 - ❌ Production with millions of records
 
-### Use DB First API When:
-- ✅ Scaffolding from existing database
-- ✅ Need strongly-typed entities from DB schema
-- ✅ Migrating legacy databases
-- ❌ New greenfield projects
-
-### Use Native SQL API When:
+### Use Native SQL API When: ⭐ RECOMMENDED
 - ✅ Production deployment
-- ✅ Working with 1M+ records
-- ✅ Need maximum performance
-- ✅ Bulk CSV ingestion
-- ✅ Scaling to billions of records
-- ✅ Want minimal dependencies
+- ✅ Working with 100K+ to billions of records
+- ✅ Need maximum performance (~10x faster)
+- ✅ Bulk CSV import (millions of records)
+- ✅ Simplicity - fewer dependencies
+- ✅ Direct database control
 
 ## Setup Each API
 
-### 1. EF Core API (Already Running)
+### 1. EF Core API (Code First)
 ```powershell
 cd src\PhoneticAnalyzers.Functions.Ingestion
 func start
 ```
 Endpoints: `http://localhost:7071/api/*`
 
-### 2. DB First API
-```powershell
-cd SQLDBFirst
-# Follow SETUP-GUIDE.md
-```
-Endpoints: `http://localhost:7073/api/*`
-
-### 3. Native SQL API (New)
+### 2. Native SQL API ⭐ RECOMMENDED
 ```powershell
 # Deploy database once
-cd sql-native-search\scripts
-.\run-all.ps1
+cd sql-native-search\sql
+psql -h localhost -U postgres -d phonetic_native -f 01_extensions.sql
+psql -h localhost -U postgres -d phonetic_native -f 02_schema.sql
+psql -h localhost -U postgres -d phonetic_native -f 04_functions.sql
+psql -h localhost -U postgres -d phonetic_native -f 05_search.sql
+psql -h localhost -U postgres -d phonetic_native -f 07_nickname_tracking.sql
 
 # Start API
 cd ..\api
-.\start.ps1
+dotnet run
 ```
 Endpoints: `http://localhost:5100/api/*`
 
 ## UI Configuration
 
-The UI at `WebUI/wwwroot/appsettings.json` now supports all three:
+The UI at `WebUI/wwwroot/appsettings.json` supports both APIs:
 
 ```json
 {
   "ApiSettings": {
-    "Approach": "CodeFirst",  // or "DatabaseFirst" or "NativeSQL"
-    "CodeFirst": {
-      "IngestionBaseUrl": "http://localhost:7071/api",
-      "SearchBaseUrl": "http://localhost:7072/api"
-    },
-    "DatabaseFirst": {
-      "IngestionBaseUrl": "http://localhost:7073/api",
-      "SearchBaseUrl": "http://localhost:7074/api"
-    },
-    "NativeSQL": {
-      "IngestionBaseUrl": "http://localhost:5100/api/ingest",
-      "SearchBaseUrl": "http://localhost:5100/api/search"
-    }
+    "BaseUrl": "http://localhost:5100"
   }
 }
 ```
 
-Change `"Approach"` to switch between APIs, or add a UI toggle to switch at runtime.
+The WebUI is configured to use the **Native SQL API** by default (port 5100).
+
+To use the EF Core API instead, change to:
+```json
+{
+  "ApiSettings": {
+    "BaseUrl": "http://localhost:7071"
+  }
+}
+```
 
 ## Endpoint Mapping
 
-| Operation | EF Core | DB First | Native SQL |
-|-----------|---------|----------|------------|
-| **Health** | GET /api/health | GET /api/health | GET /api/ingest/health |
-| **Search** | GET /api/search?queryName=x | GET /api/search?queryName=x | GET /api/search?queryName=x |
-| **Ingest** | POST /api/ingest | POST /api/ingest | POST /api/ingest |
-| **Batch** | POST /api/ingest/batch | POST /api/ingest/batch | POST /api/ingest/batch |
-| **Get Person** | GET /api/person/{id} | GET /api/person/{id} | GET /api/search/{id} |
+| Operation | EF Core | Native SQL |
+|-----------|---------|------------|
+| **Health** | GET /api/health | GET /api/search/health |
+| **Search** | GET /api/search?queryName=x | GET /api/search?queryName=x |
+| **Advanced Search** | POST /api/search/advanced | POST /api/search/advanced |
+| **Ingest** | POST /api/ingest | POST /api/ingestion/ingest |
+| **Batch** | POST /api/ingest/batch | POST /api/ingestion/batch |
+| **Get Person** | GET /api/person/{id} | GET /api/search/{id} |
+| **Suggestions** | GET /api/suggestions | GET /api/search/suggestions |
 
-## Running All Three Simultaneously
+## Running Both APIs Simultaneously
 
-You can run all APIs at once for comparison:
+You can run both APIs at once for comparison:
 
 **Terminal 1: EF Core**
 ```powershell
@@ -137,39 +128,34 @@ cd src\PhoneticAnalyzers.Functions.Ingestion
 func start
 ```
 
-**Terminal 2: DB First**
-```powershell
-cd SQLDBFirst\src\PhoneticAnalyzers.SQLDBFirst.Functions.Search
-func start
-```
-
-**Terminal 3: Native SQL**
+**Terminal 2: Native SQL**
 ```powershell
 cd sql-native-search\api
 dotnet run
 ```
 
-**Terminal 4: UI**
+**Terminal 3: WebUI**
+```powershell
+cd SQLDBFirst\src\PhoneticAnalyzers.SQLDBFirst.Functions.Search
+func start
+```
+
+**Terminal 3: WebUI**
 ```powershell
 cd WebUI
 dotnet run
 ```
 
-Then switch the UI's `"Approach"` to test each backend!
+Then switch the UI's `BaseUrl` in appsettings.json to test each backend!
 
 ## Performance Testing
 
-Test all three with the same query:
+Test both APIs with the same query:
 
 ```powershell
 # EF Core
 Measure-Command { 
     Invoke-RestMethod "http://localhost:7071/api/search?queryName=john%20davis" 
-}
-
-# DB First
-Measure-Command { 
-    Invoke-RestMethod "http://localhost:7073/api/search?queryName=john%20davis" 
 }
 
 # Native SQL
@@ -180,17 +166,18 @@ Measure-Command {
 
 ## Bulk Ingestion Strategies
 
-### EF Core / DB First (1-10K records)
+### EF Core API (1-10K records)
 ```powershell
 # HTTP batch requests
 POST /api/ingest/batch
 { "persons": [...] }
 ```
 
-### Native SQL API (10K-1M records)
+### Native SQL API (10K-2M+ records) ⭐
 ```powershell
-# HTTP batch with native functions
-POST /api/ingest/batch
+# Direct CSV import (FAST!)
+# See sql-native-search/BULK-IMPORT-GUIDE.md
+psql -c "\COPY person FROM 'data.csv' CSV HEADER"
 { "persons": [...] }
 ```
 
@@ -219,43 +206,58 @@ For production deployment with large datasets:
 
 ```
 PhoneticAnalyzers-main/
-├── src/                          # EF Core approach
+├── src/                          # EF Core approach (development/testing)
 │   ├── PhoneticAnalyzers.Functions.Ingestion/
 │   ├── PhoneticAnalyzers.Functions.Search/
-│   └── PhoneticAnalyzers.Application/
-├── SQLDBFirst/                   # Database First approach
-│   └── src/
-│       ├── PhoneticAnalyzers.SQLDBFirst.Functions.*/
-│       └── PhoneticAnalyzers.SQLDBFirst.Application/
-├── sql-native-search/            # Native SQL approach ⭐
-│   ├── api/                      # NEW: Standalone API
+│   ├── PhoneticAnalyzers.Application/
+│   ├── PhoneticAnalyzers.Domain/
+│   └── PhoneticAnalyzers.Infrastructure/
+├── sql-native-search/            # Native SQL approach ⭐ PRODUCTION
+│   ├── api/                      # ASP.NET Core API
 │   │   ├── Controllers/
 │   │   ├── Services/
 │   │   ├── Models/
-│   │   ├── start.ps1
-│   │   └── test-api.ps1
-│   ├── sql/                      # SQL functions and schema
-│   ├── scripts/                  # Deployment scripts
+│   │   └── Program.cs
+│   ├── sql/                      # PostgreSQL functions
+│   │   ├── 01_extensions.sql
+│   │   ├── 02_schema.sql
+│   │   ├── 04_functions.sql
+│   │   ├── 05_search.sql
+│   │   ├── 07_nickname_tracking.sql
+│   │   └── 08_apply_nicknames_bulk.sql
+│   ├── scripts/                  # CSV bulk import
+│   │   ├── fast-bulk-import.sql
+│   │   └── bulk-import-csv.sql
 │   ├── QUICKSTART.md
-│   └── README.md
-└── WebUI/                        # Shared Blazor UI
+│   ├── README.md
+│   └── BULK-IMPORT-GUIDE.md
+├── tools/                        # Utilities
+│   └── NicknameEnrichment/       # LLM nickname generator
+│       ├── Program.cs
+│       ├── NicknameEnrichmentService.cs
+│       ├── appsettings.json
+│       └── README.md
+└── WebUI/                        # Blazor WebAssembly UI
+    ├── Components/
+    ├── Pages/
+    ├── Services/
     └── wwwroot/appsettings.json  # API configuration
 ```
 
 ## Next Steps
 
-1. ✅ Native SQL API created
-2. ✅ UI configuration updated
-3. ⏳ Test Native SQL API: `cd sql-native-search\api; .\test-api.ps1`
-4. ⏳ Deploy database: `cd sql-native-search\scripts; .\run-all.ps1`
-5. ⏳ Start Native API: `cd sql-native-search\api; .\start.ps1`
-6. ⏳ Toggle UI to use Native SQL backend
-7. ⏳ Compare performance across all three APIs
-8. ⏳ Choose your production approach
+1. ✅ Native SQL API (RECOMMENDED for production)
+2. ✅ WebUI connected to Native SQL API
+3. ⏳ Deploy database: See `sql-native-search/QUICKSTART.md`
+4. ⏳ Start Native API: `cd sql-native-search\api; dotnet run`
+5. ⏳ Start WebUI: `cd WebUI; dotnet run`
+6. ⏳ Bulk import 2M records: See `sql-native-search/BULK-IMPORT-GUIDE.md`
+7. ⏳ LLM nickname enrichment: See `tools/NicknameEnrichment/README.md`
 
 ## Questions?
 
-- **Native SQL details**: See `sql-native-search/QUICKSTART.md`
+- **Native SQL API**: See `sql-native-search/README.md`
 - **API code**: See `sql-native-search/api/`
 - **SQL functions**: See `sql-native-search/sql/`
-- **Deployment**: See `sql-native-search/scripts/`
+- **Bulk import**: See `sql-native-search/BULK-IMPORT-GUIDE.md`
+- **Nickname enrichment**: See `tools/NicknameEnrichment/AZURE-OPENAI-SETUP.md`

@@ -14,10 +14,6 @@
                        OnClick="@ToggleDrawer" />
         <MudText Typo="Typo.h6" Class="ml-3">Phonetic Analyzers</MudText>
         <MudSpacer />
-        <MudIconButton Icon="@(Icons.Material.Filled.Info)" 
-                       Color="Color.Inherit" 
-                       Href="https://github.com/Mahantesh-GP/PhoneticAnalyzers" 
-                       Target="_blank" />
         <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)" 
                        Color="Color.Inherit" 
                        OnClick="@ToggleTheme" />
@@ -42,16 +38,7 @@
             </MudNavLink>
             <MudNavLink Href="/search" 
                         Icon="@Icons.Material.Filled.Search">
-                Advanced Search
-            </MudNavLink>
-            <MudNavLink Href="/bulk" 
-                        Icon="@Icons.Material.Filled.CloudUpload">
-                Bulk Upload
-            </MudNavLink>
-            <MudDivider Class="my-2" />
-            <MudNavLink Href="/about" 
-                        Icon="@Icons.Material.Filled.Info">
-                About
+                Advanced Name Search
             </MudNavLink>
         </MudNavMenu>
     </MudDrawer>

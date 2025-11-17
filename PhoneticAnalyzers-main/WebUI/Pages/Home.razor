@@ -22,12 +22,12 @@
         </MudPaper>
     </MudItem>
 
-    <MudItem xs="12" md="6">
-        <MudCard Elevation="2" Class="pa-4" Style="height: 100%;">
+    <MudItem xs="12">
+        <MudCard Elevation="2" Class="pa-4">
             <MudCardContent>
                 <MudStack Spacing="3">
                     <MudIcon Icon="@Icons.Material.Filled.Search" Color="Color.Primary" Size="Size.Large" />
-                    <MudText Typo="Typo.h5">Advanced Search</MudText>
+                    <MudText Typo="Typo.h5">Advanced Name Search</MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
                         Search for names with advanced filtering options including county, 
                         record type, similarity thresholds, and phonetic matching algorithms.
@@ -43,32 +43,6 @@
             <MudCardActions>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/search" FullWidth="true">
                     Start Searching
-                </MudButton>
-            </MudCardActions>
-        </MudCard>
-    </MudItem>
-
-    <MudItem xs="12" md="6">
-        <MudCard Elevation="2" Class="pa-4" Style="height: 100%;">
-            <MudCardContent>
-                <MudStack Spacing="3">
-                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" Color="Color.Secondary" Size="Size.Large" />
-                    <MudText Typo="Typo.h5">Bulk Upload</MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        Upload multiple names at once for batch processing. 
-                        Perfect for large-scale data matching and enrichment operations.
-                    </MudText>
-                    <MudText Typo="Typo.body2">
-                         Process up to 20 names at once<br />
-                         Configurable similarity settings<br />
-                         Detailed match results<br />
-                         CSV export capability
-                    </MudText>
-                </MudStack>
-            </MudCardContent>
-            <MudCardActions>
-                <MudButton Variant="Variant.Filled" Color="Color.Secondary" Href="/bulk" FullWidth="true">
-                    Bulk Search
                 </MudButton>
             </MudCardActions>
         </MudCard>

@@ -50,13 +50,13 @@
             <MudItem xs="6" md="3">
                 <MudNumericField 
                     @bind-Value="Model.MinSimilarityThreshold" 
-                    Label="Min Similarity" 
+                    Label="Min Similarity (%)" 
                     Variant="Variant.Outlined"
                     Min="0"
-                    Max="1"
-                    Step="0.05"
-                    Format="F2"
-                    HelperText="0.0 - 1.0" />
+                    Max="100"
+                    Step="5"
+                    Format="N0"
+                    HelperText="0% - 100%" />
             </MudItem>
 
             <!-- County Filter -->
@@ -173,8 +173,8 @@
     {
         Logger.LogInformation("Clearing search form");
         Model.QueryName = string.Empty;
-        Model.MaxResults = 10;
-        Model.MinSimilarityThreshold = 0.5;
+        Model.MaxResults = 50;
+        Model.MinSimilarityThreshold = 50;
         Model.CountyId = null;
         Model.RecordType = null;
         Model.IncludeTrigramSimilarity = true;
