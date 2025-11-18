@@ -36,8 +36,8 @@
             <!-- Introduction -->
             <MudAlert Severity="Severity.Info" Dense="true">
                 <MudText Typo="Typo.body2">
-                    <strong>Welcome to Phonetic Search!</strong> This tool finds names even with spelling variations, 
-                    typos, or phonetic similarities. Use the options below to customize your search.
+                    <strong>Welcome to Advanced Name Search!</strong> This tool finds names with exact matches, 
+                    typos, nickname variations, and phonetic similarities.
                 </MudText>
             </MudAlert>
 
@@ -46,16 +46,16 @@
             <MudPaper Class="pa-3" Elevation="0" Outlined="true" Style="background-color: #f5f5f5;">
                 <MudText Typo="Typo.body2">
                     <strong>Try these searches:</strong><br/>
-                    • <code>John Smith</code> - Finds exact matches and similar sounding names<br/>
-                    • <code>Robert</code> - Also finds Bob, Rob, Bobby (with Nicknames ON)<br/>
-                    • <code>Smyth</code> - Finds Smith, Smythe, Smithe (phonetic matching)<br/>
-                    • <code>Kathryn</code> - Finds Catherine, Katherine, Kathryn (sound-alike names)
+                    • <code>John Smith</code> - Finds exact matches (100%) and partial matches<br/>
+                    • <code>Robert</code> - Also finds Bob, Rob, Bobby (nickname matching)<br/>
+                    • <code>Smyth</code> - Finds Smith, Smythe (phonetic and fuzzy matching)<br/>
+                    • <code>Kathryn</code> - Finds Catherine, Katherine (sound-alike names)
                 </MudText>
             </MudPaper>
 
             <MudDivider />
 
-            <MudText Typo="Typo.subtitle1" Color="Color.Primary">⚙️ Settings Explained</MudText>
+            <MudText Typo="Typo.subtitle1" Color="Color.Primary">⚙️ Search Settings</MudText>
             
             <MudPaper Class="pa-3" Elevation="0" Outlined="true">
                 <MudStack Spacing="2">
@@ -64,67 +64,31 @@
                         <MudText Typo="Typo.subtitle2"><strong>Min Similarity (%)</strong></MudText>
                     </MudStack>
                     <MudText Typo="Typo.body2">
-                        Controls how close names need to be for Trigram matching.
+                        Controls how close fuzzy matches need to be.
                     </MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        • <strong>30%</strong> (Default): Finds most variations<br/>
+                        • <strong>30%</strong> (Default): Finds most variations and typos<br/>
                         • <strong>50%</strong>: Balanced - fewer false matches<br/>
-                        • <strong>70%</strong>: Very strict - only close matches
+                        • <strong>70%</strong>: Very strict - only very close matches
                     </MudText>
                 </MudStack>
             </MudPaper>
 
-            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
-                <MudStack Spacing="2">
-                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                        <MudIcon Icon="@Icons.Material.Filled.CheckBox" Color="Color.Success" />
-                        <MudText Typo="Typo.subtitle2"><strong>☑️ Trigram</strong></MudText>
-                    </MudStack>
-                    <MudText Typo="Typo.body2">
-                        Finds typos and misspellings (like "Micheal" → "Michael").
-                    </MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        ✅ Turn ON for data with typos<br/>
-                        ❌ Turn OFF for exact matches only
-                    </MudText>
-                </MudStack>
-            </MudPaper>
-
-            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
-                <MudStack Spacing="2">
-                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                        <MudIcon Icon="@Icons.Material.Filled.Person" Color="Color.Warning" />
-                        <MudText Typo="Typo.subtitle2"><strong>☑️ Nicknames</strong></MudText>
-                    </MudStack>
-                    <MudText Typo="Typo.body2">
-                        Finds nickname variations automatically.
-                    </MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        Examples: Robert → Bob, Bobby | William → Bill, Billy | Elizabeth → Liz, Beth
-                    </MudText>
-                </MudStack>
-            </MudPaper>
-
-            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
-                <MudStack Spacing="2">
-                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                        <MudIcon Icon="@Icons.Material.Filled.Info" Color="Color.Info" />
-                        <MudText Typo="Typo.subtitle2"><strong>☑️ Details</strong></MudText>
-                    </MudStack>
-                    <MudText Typo="Typo.body2">
-                        Shows phonetic codes and match explanations for each result.
-                    </MudText>
-                </MudStack>
-            </MudPaper>
+            <MudAlert Severity="Severity.Success" Dense="true" Class="mt-2">
+                <MudText Typo="Typo.body2">
+                    <strong>ℹ️ Note:</strong> Fuzzy matching and nickname expansion are <strong>always enabled</strong> 
+                    to provide comprehensive search results. The system automatically handles typos and common nicknames.
+                </MudText>
+            </MudAlert>
 
             <MudDivider />
 
-            <MudText Typo="Typo.subtitle1" Color="Color.Primary">📊 Match Types (Best Match Wins)</MudText>
+            <MudText Typo="Typo.subtitle1" Color="Color.Primary">📊 How Scoring Works</MudText>
 
             <MudAlert Severity="Severity.Info" Dense="true">
                 <MudText Typo="Typo.body2">
-                    Each person appears <strong>once</strong> with their <strong>highest score</strong>. 
-                    Results are sorted from best to worst match.
+                    Each person appears <strong>once</strong> with their <strong>best match score</strong>. 
+                    Results are ranked by match quality: exact matches first, followed by fuzzy and phonetic matches.
                 </MudText>
             </MudAlert>
 
@@ -132,13 +96,14 @@
                 <MudStack Spacing="2">
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
                         <MudIcon Icon="@Icons.Material.Filled.Stars" Color="Color.Success" />
-                        <MudText Typo="Typo.subtitle2"><strong>Exact</strong> (100%)</MudText>
+                        <MudText Typo="Typo.subtitle2"><strong>Exact Match</strong> (100%)</MudText>
                     </MudStack>
                     <MudText Typo="Typo.body2">
-                        Perfect match - your search exactly matches the full name.
+                        Perfect match - your search exactly matches the full name or business core name.
                     </MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        Example: "john smith" finds "John Smith"
+                        Example: "john smith" → "John Smith" (100%)<br/>
+                        Example: "ABC Solutions" → "ABC Solutions LLC" (95% - business core match)
                     </MudText>
                 </MudStack>
             </MudPaper>
@@ -146,15 +111,15 @@
             <MudPaper Class="pa-3" Elevation="0" Outlined="true">
                 <MudStack Spacing="2">
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                        <MudIcon Icon="@Icons.Material.Filled.Group" Color="Color.Warning" />
-                        <MudText Typo="Typo.subtitle2"><strong>NicknameExpansion</strong> (100%)</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                        <MudText Typo="Typo.subtitle2"><strong>All Tokens Exact</strong> (≤95%)</MudText>
                     </MudStack>
                     <MudText Typo="Typo.body2">
-                        Finds names using common nickname variants (requires Nicknames checkbox).
+                        All your search words match exactly, but candidate may have extra words.
                     </MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        Example: "Robert" finds "Bob Smith", "Bobby Jones"<br/>
-                        Shows: "bob → robert (nickname)"
+                        Example: "john smith" → "John Patrick Smith" (~85%)<br/>
+                        Explanation: "All your words match; plus extra words."
                     </MudText>
                 </MudStack>
             </MudPaper>
@@ -162,14 +127,16 @@
             <MudPaper Class="pa-3" Elevation="0" Outlined="true">
                 <MudStack Spacing="2">
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                        <MudIcon Icon="@Icons.Material.Filled.VolumeUp" Color="Color.Info" />
-                        <MudText Typo="Typo.subtitle2"><strong>DoubleMetaphone</strong> (90%)</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.BlurOn" Color="Color.Info" />
+                        <MudText Typo="Typo.subtitle2"><strong>High Coverage Fuzzy</strong> (75-89%)</MudText>
                     </MudStack>
                     <MudText Typo="Typo.body2">
-                        Matches names that sound alike.
+                        Most words match closely, handles typos and misspellings.
                     </MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        Example: "Stephen" finds "Steven", "Catherine" finds "Katherine"
+                        Example: "john smyth" → "John Smith" (~85%)<br/>
+                        Example: "micheal" → "Michael" (~82%)<br/>
+                        Explanation: "Most words matched closely."
                     </MudText>
                 </MudStack>
             </MudPaper>
@@ -177,14 +144,15 @@
             <MudPaper Class="pa-3" Elevation="0" Outlined="true">
                 <MudStack Spacing="2">
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                        <MudIcon Icon="@Icons.Material.Filled.RecordVoiceOver" Color="Color.Info" />
-                        <MudText Typo="Typo.subtitle2"><strong>Metaphone</strong> (85%)</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.Grain" Color="Color.Warning" />
+                        <MudText Typo="Typo.subtitle2"><strong>Partial Match</strong> (60-74%)</MudText>
                     </MudStack>
                     <MudText Typo="Typo.body2">
-                        Phonetic matching for similar pronunciation.
+                        Some words match, or longer similar names found.
                     </MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        Example: "Sean" finds "Shawn", "Geoffrey" finds "Jeffrey"
+                        Example: "robert" → "Robertson" (~65% with superstring penalty)<br/>
+                        Explanation: "Close match; includes a longer similar name."
                     </MudText>
                 </MudStack>
             </MudPaper>
@@ -192,30 +160,16 @@
             <MudPaper Class="pa-3" Elevation="0" Outlined="true">
                 <MudStack Spacing="2">
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                        <MudIcon Icon="@Icons.Material.Filled.Language" Color="Color.Tertiary" />
-                        <MudText Typo="Typo.subtitle2"><strong>Soundex</strong> (80%)</MudText>
+                        <MudIcon Icon="@Icons.Material.Filled.RecordVoiceOver" Color="Color.Secondary" />
+                        <MudText Typo="Typo.subtitle2"><strong>Phonetic Match</strong> (≤59%)</MudText>
                     </MudStack>
                     <MudText Typo="Typo.body2">
-                        Traditional surname matching.
+                        Names sound similar (uses Metaphone, Double Metaphone, or Soundex algorithms).
                     </MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        Example: "Smith" finds "Smythe", "Johnson" finds "Jonson"
-                    </MudText>
-                </MudStack>
-            </MudPaper>
-
-            <MudPaper Class="pa-3" Elevation="0" Outlined="true">
-                <MudStack Spacing="2">
-                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                        <MudIcon Icon="@Icons.Material.Filled.BlurOn" Color="Color.Default" />
-                        <MudText Typo="Typo.subtitle2"><strong>TrigramSimilarity</strong> (30-80%)</MudText>
-                    </MudStack>
-                    <MudText Typo="Typo.body2">
-                        Catches typos and spelling mistakes (controlled by Min Similarity %).
-                    </MudText>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        Example: "Micheal" finds "Michael", "Smythe" finds "Smith"<br/>
-                        Shows exact % match: "Token 'DAVIS' matched 'DAVIS' (100%)"
+                        Example: "Stephen" → "Steven"<br/>
+                        Example: "Sean" → "Shawn"<br/>
+                        Explanation: "Sounds like your search."
                     </MudText>
                 </MudStack>
             </MudPaper>
@@ -225,10 +179,11 @@
             <MudAlert Severity="Severity.Success" Dense="true">
                 <MudText Typo="Typo.body2">
                     <strong>💡 Quick Tips:</strong><br/>
+                    • Only <strong>full name exact</strong> matches score 100%<br/>
                     • Each person shows <strong>once</strong> with their <strong>best match</strong><br/>
-                    • Lower <strong>Min Similarity %</strong> to find more typo matches<br/>
-                    • Enable <strong>Nicknames</strong> to find Bob, Bill, Liz variations<br/>
-                    • <strong>Exact</strong> matches (100%) always appear first
+                    • Lower <strong>Min Similarity %</strong> to find more typo variations<br/>
+                    • Nicknames (Bob/Robert) and phonetic matches work automatically<br/>
+                    • Business names ignore LLC/INC/etc. for matching
                 </MudText>
             </MudAlert>
         </MudStack>
