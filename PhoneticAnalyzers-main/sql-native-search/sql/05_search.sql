@@ -22,11 +22,30 @@ CREATE OR REPLACE FUNCTION search_persons(
 ) LANGUAGE sql STABLE AS $$
 WITH params AS (
   SELECT normalize_name(query_name) AS q
-), qtokens AS (
+),
+-- PHASE 1 OPTIMIZATION: Early bailout for exact matches
+early_exact AS (
+  SELECT pr.person_id, pr.full_name, 'Exact'::text AS match_type,
+         1.0::float8 AS similarity_score,
+         'FullName'::text AS matched_field,
+         pr.normalized_name AS matched_value,
+         pr.county, pr.flag,
+         jsonb_build_object(
+           'explanation', 'Full name exact match',
+           'displayText', 'Exact match on full normalized name'
+         ) AS match_metadata
+  FROM params p
+  JOIN person pr ON pr.normalized_name = p.q
+  WHERE (county_filter IS NULL OR pr.county = county_filter)
+    AND (flag_filter IS NULL OR pr.flag = flag_filter)
+  LIMIT max_results
+),
+qtokens AS (
   -- Filter out very short tokens (< 2 chars) to avoid noise like "C", "A", etc.
   SELECT t.token, t.token_position
   FROM params p, tokenize_name(p.q) AS t
   WHERE length(t.token) >= 2
+    AND NOT EXISTS (SELECT 1 FROM early_exact)  -- Skip if exact match found
 ), qtokens_weighted AS (
   -- Assign weights: common suffixes/words get lower priority
   SELECT 
@@ -43,7 +62,23 @@ WITH params AS (
       ELSE 1.0
     END AS token_weight
   FROM qtokens
-), exact_matches AS (
+),
+-- PHASE 1 OPTIMIZATION: Pre-expand nicknames from nickname_maps (1,426 rows vs 1.3M person_names)
+expanded_qtokens AS (
+  SELECT DISTINCT qt.token, qt.token_weight
+  FROM qtokens_weighted qt
+  UNION
+  SELECT nm.nickname AS token, qt.token_weight
+  FROM qtokens_weighted qt
+  JOIN nickname_maps nm ON nm.canonical_name = qt.token
+  WHERE include_nicknames = TRUE
+  UNION
+  SELECT nm.canonical_name AS token, qt.token_weight
+  FROM qtokens_weighted qt
+  JOIN nickname_maps nm ON nm.nickname = qt.token
+  WHERE include_nicknames = TRUE
+),
+exact_matches AS (
   -- Full name exact match (individuals and businesses)
   SELECT pr.person_id, pr.full_name, 'Exact'::text AS match_type,
          1.0::float8 AS similarity_score,
@@ -74,24 +109,24 @@ WITH params AS (
     AND pr.business_core_name IS NOT NULL
     AND (pr.business_core_name = p.q OR pr.business_core_name = normalize_business_core(p.q))
 ), nickname_matches AS (
-  -- Matches via nickname expansion (e.g., bob → robert) - INDIVIDUALS ONLY
-  SELECT pn.person_id, pr.full_name, 'Exact'::text AS match_type,
-         1.0::float8 AS similarity_score,
+  -- Matches via nickname expansion using pre-expanded tokens (INDIVIDUALS ONLY)
+  SELECT pn.person_id, pr.full_name, 'Nickname'::text AS match_type,
+         0.98::float8 AS similarity_score,
          'NicknameExpansion'::text AS matched_field,
-         pn.original_token AS matched_value,
+         pn.name_token AS matched_value,
          pr.county,
          pr.flag,
          jsonb_build_object(
-           'explanation', 'Nickname expansion',
-           'searchedName', qt.token,
-           'matchedName', pn.original_token,
-           'displayText', qt.token || ' → ' || pn.original_token || ' (nickname)'
+           'explanation', 'Nickname expansion match',
+           'displayText', 'Matched via nickname expansion'
          ) AS match_metadata
-  FROM qtokens_weighted qt
-  JOIN person_names pn ON pn.name_token = qt.token AND pn.is_nickname = TRUE
+  FROM expanded_qtokens eqt
+  JOIN person_names pn ON pn.name_token = eqt.token
   JOIN person pr ON pr.person_id = pn.person_id AND pr.flag <> 'B'  -- Exclude businesses
+  WHERE include_nicknames = TRUE
+    AND NOT EXISTS (SELECT 1 FROM early_exact)  -- Skip if exact match found
 ), token_matches AS (
-  -- Collect all token-level matches with their similarity scores and weights
+  -- PHASE 2 OPTIMIZATION: Collect token matches with LIMIT to cap expensive fuzzy matching
   SELECT 
     pn.person_id,
     qt.token AS query_token,
@@ -109,6 +144,9 @@ WITH params AS (
               AND levenshtein_less_equal(pn.name_token, qt.token, 1) <= 1
             )
        )
+  WHERE include_fuzzy = TRUE
+    AND NOT EXISTS (SELECT 1 FROM early_exact)  -- Skip if exact match found
+  LIMIT 5000  -- Cap candidates to prevent excessive computation
 ), token_best_matches AS (
   -- Choose the best match per person and query token with kind priority: exact > lev1 > fuzzy
   SELECT DISTINCT ON (tm.person_id, tm.query_token)
@@ -233,15 +271,16 @@ WITH params AS (
   FROM qtokens_weighted qt
   JOIN person_names pn ON pn.soundex_code = soundex(qt.token)
 ), phonetic_matches AS (
+  -- PHASE 2 OPTIMIZATION: Add LIMIT to phonetic matches and skip if exact found
   SELECT 
     ptm.person_id,
     pr.full_name,
     ptm.phonetic_type AS match_type,
     LEAST(
       CASE ptm.phonetic_type
-        WHEN 'DoubleMetaphone' THEN 0.75
-        WHEN 'Metaphone' THEN 0.70
-        WHEN 'Soundex' THEN 0.65
+        WHEN 'DoubleMetaphone' THEN 0.59
+        WHEN 'Metaphone' THEN 0.56
+        WHEN 'Soundex' THEN 0.53
       END * (SUM(ptm.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)),
       1.0
     ) AS similarity_score,
@@ -257,9 +296,15 @@ WITH params AS (
     ) AS match_metadata
   FROM phonetic_token_matches ptm
   JOIN person pr ON pr.person_id = ptm.person_id
+  WHERE include_fuzzy = TRUE
+    AND NOT EXISTS (SELECT 1 FROM early_exact)  -- Skip if exact match found
   GROUP BY ptm.person_id, pr.full_name, ptm.phonetic_type, pr.county, pr.flag
+  LIMIT 1000  -- Cap phonetic candidates
 ), all_matches AS (
-  SELECT * FROM exact_matches
+  -- Return early exact matches immediately if found
+  SELECT * FROM early_exact
+  UNION ALL
+  SELECT * FROM exact_matches WHERE NOT EXISTS (SELECT 1 FROM early_exact)
   UNION ALL
   SELECT * FROM nickname_matches WHERE include_nicknames = TRUE
   UNION ALL
@@ -267,7 +312,7 @@ WITH params AS (
   UNION ALL
   SELECT * FROM phonetic_matches WHERE include_fuzzy = TRUE
 ), ranked AS (
-  -- Keep best match per person, with priority ordering
+  -- Keep best match per person, with FIXED priority: Exact=1, Nickname=2, Trigram=3, Phonetic=4
   SELECT DISTINCT ON (person_id)
          person_id, 
          full_name, 
@@ -278,15 +323,21 @@ WITH params AS (
          county, 
          flag, 
          match_metadata,
-         -- Add sort priority: Exact=1, Trigram=2, Phonetic=3
+         -- PHASE 1 FIX: Correct priority ordering (Exact=1, Nickname=2, Trigram=3, Phonetic=4)
          CASE match_type 
            WHEN 'Exact' THEN 1
-           WHEN 'TrigramSimilarity' THEN 2
-           ELSE 3
+           WHEN 'Nickname' THEN 2
+           WHEN 'TrigramSimilarity' THEN 3
+           ELSE 4
          END AS match_priority
   FROM all_matches
   ORDER BY person_id, 
-           CASE match_type WHEN 'Exact' THEN 1 WHEN 'TrigramSimilarity' THEN 2 ELSE 3 END,
+           CASE match_type 
+             WHEN 'Exact' THEN 1
+             WHEN 'Nickname' THEN 2
+             WHEN 'TrigramSimilarity' THEN 3
+             ELSE 4
+           END,
            similarity_score DESC
 )
 SELECT person_id, full_name, match_type, similarity_score, matched_field, matched_value, county, flag, match_metadata
