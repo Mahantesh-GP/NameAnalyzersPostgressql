@@ -89,9 +89,13 @@ WITH params AS (
     tm.person_id,
     pr.full_name,
     'TrigramSimilarity'::text AS match_type,
-    -- Weighted composite score: (weighted avg similarity) * (weighted matched tokens / total weighted query tokens)
-    (SUM(tm.sim_score * tm.token_weight) / NULLIF(SUM(tm.token_weight), 0)) * 
-    (SUM(tm.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)) AS similarity_score,
+    -- Composite score: (weighted avg similarity * coverage ratio) capped at 1.0
+    -- Coverage = matched weight / total query weight
+    LEAST(
+      (SUM(tm.sim_score * tm.token_weight) / NULLIF(SUM(tm.token_weight), 0)) * 
+      (SUM(tm.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)),
+      1.0
+    ) AS similarity_score,
     'TokenOrName'::text AS matched_field,
     STRING_AGG(DISTINCT tm.matched_token, ', ' ORDER BY tm.matched_token) AS matched_value,
     pr.county,
@@ -101,10 +105,11 @@ WITH params AS (
       'matchedTokens', COUNT(DISTINCT tm.query_token),
       'totalQueryTokens', (SELECT COUNT(*) FROM qtokens_weighted),
       'avgSimilarity', ROUND((AVG(tm.sim_score) * 100)::numeric, 1),
-      'weightedScore', ROUND((SUM(tm.sim_score * tm.token_weight) / NULLIF(SUM(tm.token_weight), 0) * 100)::numeric, 1),
+      'coveragePct', ROUND((SUM(tm.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0) * 100)::numeric, 1),
       'displayText', 'Matched ' || COUNT(DISTINCT tm.query_token) || ' of ' || 
-                     (SELECT COUNT(*) FROM qtokens_weighted) || ' query tokens (weighted avg ' || 
-                     ROUND((SUM(tm.sim_score * tm.token_weight) / NULLIF(SUM(tm.token_weight), 0) * 100)::numeric, 1) || '% similarity)'
+                     (SELECT COUNT(*) FROM qtokens_weighted) || ' query tokens (' || 
+                     ROUND((AVG(tm.sim_score) * 100)::numeric, 1) || '% avg similarity, ' ||
+                     ROUND((SUM(tm.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0) * 100)::numeric, 1) || '% coverage)'
     ) AS match_metadata
   FROM token_matches tm
   JOIN person pr ON pr.person_id = tm.person_id
@@ -170,16 +175,32 @@ WITH params AS (
   UNION ALL
   SELECT * FROM phonetic_matches
 ), ranked AS (
-  -- Keep best match per person
+  -- Keep best match per person, with priority ordering
   SELECT DISTINCT ON (person_id)
-         person_id, full_name, match_type, similarity_score, matched_field, matched_value, county, flag, match_metadata
+         person_id, 
+         full_name, 
+         match_type, 
+         similarity_score,
+         matched_field, 
+         matched_value, 
+         county, 
+         flag, 
+         match_metadata,
+         -- Add sort priority: Exact=1, Trigram=2, Phonetic=3
+         CASE match_type 
+           WHEN 'Exact' THEN 1
+           WHEN 'TrigramSimilarity' THEN 2
+           ELSE 3
+         END AS match_priority
   FROM all_matches
-  ORDER BY person_id, similarity_score DESC
+  ORDER BY person_id, 
+           CASE match_type WHEN 'Exact' THEN 1 WHEN 'TrigramSimilarity' THEN 2 ELSE 3 END,
+           similarity_score DESC
 )
-SELECT *
+SELECT person_id, full_name, match_type, similarity_score, matched_field, matched_value, county, flag, match_metadata
 FROM ranked
 WHERE (county_filter IS NULL OR county = county_filter)
   AND (flag_filter IS NULL OR flag = flag_filter)
-ORDER BY similarity_score DESC, full_name ASC
+ORDER BY match_priority ASC, similarity_score DESC, full_name ASC
 LIMIT max_results;
 $$;
