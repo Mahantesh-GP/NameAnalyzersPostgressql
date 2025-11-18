@@ -21,6 +21,12 @@ public class SearchRequest
     
     [JsonPropertyName("recordType")]
     public string? RecordType { get; set; }
+
+    [JsonPropertyName("includeTrigramSimilarity")]
+    public bool IncludeTrigramSimilarity { get; set; } = true;
+
+    [JsonPropertyName("expandNicknames")]
+    public bool ExpandNicknames { get; set; } = true;
 }
 
 /// <summary>

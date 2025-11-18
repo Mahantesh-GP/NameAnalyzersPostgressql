@@ -6,7 +6,9 @@ CREATE OR REPLACE FUNCTION search_persons(
   max_results INT DEFAULT 50,
   min_similarity DOUBLE PRECISION DEFAULT 0.3,
   county_filter TEXT DEFAULT NULL,
-  flag_filter TEXT DEFAULT NULL
+  flag_filter TEXT DEFAULT NULL,
+  include_fuzzy BOOLEAN DEFAULT TRUE,
+  include_nicknames BOOLEAN DEFAULT TRUE
 ) RETURNS TABLE (
   person_id BIGINT,
   full_name TEXT,
@@ -107,38 +109,100 @@ WITH params AS (
               AND levenshtein_less_equal(pn.name_token, qt.token, 1) <= 1
             )
        )
-), trigram_matches AS (
-  -- Aggregate match quality: count matched tokens, sum similarity, compute avg
-  -- Apply token weights so "John Miller" matters more than "Solutions Private"
-  SELECT 
+), token_best_matches AS (
+  -- Choose the best match per person and query token with kind priority: exact > lev1 > fuzzy
+  SELECT DISTINCT ON (tm.person_id, tm.query_token)
     tm.person_id,
+    tm.query_token,
+    tm.token_weight,
+    tm.matched_token,
+    tm.sim_score,
+    (tm.matched_token = tm.query_token) AS is_exact,
+    (
+      length(tm.matched_token) > length(tm.query_token)
+      AND left(tm.matched_token, length(tm.query_token)) = tm.query_token
+      AND (length(tm.matched_token) - length(tm.query_token)) >= 2
+    ) AS is_superstring,
+    CASE 
+      WHEN tm.matched_token = tm.query_token THEN 1
+      WHEN (length(tm.query_token) >= 5 AND levenshtein_less_equal(tm.matched_token, tm.query_token, 1) <= 1) THEN 2
+      ELSE 3
+    END AS kind_rank
+  FROM token_matches tm
+  ORDER BY tm.person_id, tm.query_token, kind_rank, tm.sim_score DESC
+), person_token_stats AS (
+  -- Aggregate token-level stats per person for rule-based scoring
+  SELECT 
+    tbm.person_id,
+    SUM(tbm.token_weight) AS matched_weight,
+    SUM(tbm.token_weight) FILTER (WHERE tbm.is_exact) AS exact_weight,
+    SUM(tbm.token_weight) FILTER (WHERE NOT tbm.is_exact) AS non_exact_weight,
+    AVG(tbm.sim_score) AS avg_sim,
+    BOOL_OR(tbm.is_superstring) AS has_superstring,
+    COUNT(*) AS matched_token_count,
+    (SELECT SUM(token_weight) FROM qtokens_weighted) AS total_query_weight,
+    (SELECT COUNT(*) FROM qtokens_weighted) AS qtoken_count
+  FROM token_best_matches tbm
+  GROUP BY tbm.person_id
+), rule_based_matches AS (
+  -- Apply clear classes and scores so only full name exact reaches 1.0
+  SELECT 
+    pts.person_id,
     pr.full_name,
     'TrigramSimilarity'::text AS match_type,
-    -- Composite score: (weighted avg similarity * coverage ratio) capped at 1.0
-    -- Coverage = matched weight / total query weight
     LEAST(
-      (SUM(tm.sim_score * tm.token_weight) / NULLIF(SUM(tm.token_weight), 0)) * 
-      (SUM(tm.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)),
+      CASE 
+        -- All tokens exact and no extra tokens
+        WHEN pts.exact_weight = pts.total_query_weight AND ptc.person_token_count = pts.qtoken_count THEN 0.95
+        -- All tokens exact but candidate has extra tokens: penalize extras proportionally
+        WHEN pts.exact_weight = pts.total_query_weight AND ptc.person_token_count > pts.qtoken_count THEN 
+          0.90 * (1 - 0.5 * ((ptc.person_token_count - pts.qtoken_count)::float / NULLIF(ptc.person_token_count::float, 0)))
+        -- High coverage fuzzy (>=80% of query weight matched via exact/fuzzy)
+        WHEN (pts.matched_weight / NULLIF(pts.total_query_weight, 0)) >= 0.8 THEN 
+          LEAST(0.75 + 0.14 * (pts.matched_weight / NULLIF(pts.total_query_weight, 0)) * COALESCE(pts.avg_sim, 0.8), 0.89)
+        -- Partial exact or low coverage fuzzy
+        WHEN pts.matched_weight > 0 THEN 
+          LEAST(0.60 + 0.14 * (pts.matched_weight / NULLIF(pts.total_query_weight, 0)) * COALESCE(pts.avg_sim, 0.7), 0.74)
+        ELSE 0.0
+      END 
+      * (CASE WHEN pts.has_superstring THEN 0.85 ELSE 1 END),
       1.0
     ) AS similarity_score,
-    'TokenOrName'::text AS matched_field,
-    STRING_AGG(DISTINCT tm.matched_token, ', ' ORDER BY tm.matched_token) AS matched_value,
+    'TokenSet'::text AS matched_field,
+    STRING_AGG(DISTINCT tbm.matched_token, ', ' ORDER BY tbm.matched_token) AS matched_value,
     pr.county,
     pr.flag,
     jsonb_build_object(
-      'explanation', 'Fuzzy match using trigram similarity',
-      'matchedTokens', COUNT(DISTINCT tm.query_token),
-      'totalQueryTokens', (SELECT COUNT(*) FROM qtokens_weighted),
-      'avgSimilarity', ROUND((AVG(tm.sim_score) * 100)::numeric, 1),
-      'coveragePct', ROUND((SUM(tm.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0) * 100)::numeric, 1),
-      'displayText', 'Matched ' || COUNT(DISTINCT tm.query_token) || ' of ' || 
-                     (SELECT COUNT(*) FROM qtokens_weighted) || ' query tokens (' || 
-                     ROUND((AVG(tm.sim_score) * 100)::numeric, 1) || '% avg similarity, ' ||
-                     ROUND((SUM(tm.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0) * 100)::numeric, 1) || '% coverage)'
+      'explanation', 'Rule-based fuzzy match with coverage and exactness penalties',
+      'classification', CASE 
+        WHEN pts.exact_weight = pts.total_query_weight AND ptc.person_token_count = pts.qtoken_count THEN 'AllTokensExact'
+        WHEN pts.exact_weight = pts.total_query_weight AND ptc.person_token_count > pts.qtoken_count THEN 'AllTokensExactPlusExtra'
+        WHEN (pts.matched_weight / NULLIF(pts.total_query_weight, 0)) >= 0.8 THEN 'HighCoverageFuzzy'
+        WHEN pts.matched_weight > 0 THEN 'PartialExact'
+        ELSE 'Unclassified'
+      END,
+      'coveragePct', ROUND(((pts.matched_weight / NULLIF(pts.total_query_weight, 0)) * 100)::numeric, 1),
+      'exactTokenPct', ROUND(((COALESCE(pts.exact_weight,0) / NULLIF(pts.total_query_weight, 0)) * 100)::numeric, 1),
+      'avgSimilarity', ROUND((COALESCE(pts.avg_sim,0) * 100)::numeric, 1),
+      'queryTokenCount', pts.qtoken_count,
+      'personTokenCount', ptc.person_token_count,
+      'hasSuperstringPenalty', pts.has_superstring,
+      'displayText', 'Coverage ' || ROUND(((pts.matched_weight / NULLIF(pts.total_query_weight, 0)) * 100)::numeric, 1) || '%; ' ||
+                     'Exact ' || ROUND(((COALESCE(pts.exact_weight,0) / NULLIF(pts.total_query_weight, 0)) * 100)::numeric, 1) || '%; ' ||
+                     CASE WHEN pts.has_superstring THEN 'Superstring penalty applied' ELSE 'No superstring penalty' END
     ) AS match_metadata
-  FROM token_matches tm
-  JOIN person pr ON pr.person_id = tm.person_id
-  GROUP BY tm.person_id, pr.full_name, pr.county, pr.flag
+  FROM person_token_stats pts
+  JOIN person pr ON pr.person_id = pts.person_id
+  LEFT JOIN token_best_matches tbm ON tbm.person_id = pts.person_id
+  CROSS JOIN params p
+  CROSS JOIN LATERAL (SELECT COUNT(*) AS person_token_count FROM tokenize_name(pr.normalized_name)) ptc
+  -- Exclude exact full-name and business-core exact; they are provided by exact_matches already
+  WHERE pr.normalized_name <> p.q
+    AND NOT (
+      pr.flag = 'B' AND pr.business_core_name IS NOT NULL AND 
+      (pr.business_core_name = p.q OR pr.business_core_name = normalize_business_core(p.q))
+    )
+  GROUP BY pts.person_id, pr.full_name, pr.county, pr.flag, pts.matched_weight, pts.total_query_weight, pts.exact_weight, pts.avg_sim, pts.qtoken_count, pts.has_superstring, ptc.person_token_count
 ), phonetic_token_matches AS (
   -- Phonetic matching on individual tokens (not full query) for better precision
   -- Include token weights
@@ -173,11 +237,14 @@ WITH params AS (
     ptm.person_id,
     pr.full_name,
     ptm.phonetic_type AS match_type,
-    CASE ptm.phonetic_type
-      WHEN 'DoubleMetaphone' THEN 0.75
-      WHEN 'Metaphone' THEN 0.70
-      WHEN 'Soundex' THEN 0.65
-    END * (SUM(ptm.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)) AS similarity_score,
+    LEAST(
+      CASE ptm.phonetic_type
+        WHEN 'DoubleMetaphone' THEN 0.75
+        WHEN 'Metaphone' THEN 0.70
+        WHEN 'Soundex' THEN 0.65
+      END * (SUM(ptm.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)),
+      1.0
+    ) AS similarity_score,
     ptm.phonetic_type AS matched_field,
     STRING_AGG(DISTINCT ptm.matched_token, ', ' ORDER BY ptm.matched_token) AS matched_value,
     pr.county,
@@ -194,11 +261,11 @@ WITH params AS (
 ), all_matches AS (
   SELECT * FROM exact_matches
   UNION ALL
-  SELECT * FROM nickname_matches
+  SELECT * FROM nickname_matches WHERE include_nicknames = TRUE
   UNION ALL
-  SELECT * FROM trigram_matches
+  SELECT * FROM rule_based_matches WHERE include_fuzzy = TRUE
   UNION ALL
-  SELECT * FROM phonetic_matches
+  SELECT * FROM phonetic_matches WHERE include_fuzzy = TRUE
 ), ranked AS (
   -- Keep best match per person, with priority ordering
   SELECT DISTINCT ON (person_id)

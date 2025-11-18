@@ -104,7 +104,7 @@ public class NativeDatabaseService : INativeDatabaseService
             }
 
             await using var cmd = new NpgsqlCommand(
-                "SELECT * FROM search_persons($1, $2, $3, $4, $5)",
+                "SELECT * FROM search_persons($1, $2, $3, $4, $5, $6, $7)",
                 connection);
 
             cmd.Parameters.AddWithValue(request.QueryName);
@@ -112,6 +112,8 @@ public class NativeDatabaseService : INativeDatabaseService
             cmd.Parameters.AddWithValue(request.MinSimilarity);
             cmd.Parameters.AddWithValue(countyName ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue(request.RecordType ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue(request.IncludeTrigramSimilarity);
+            cmd.Parameters.AddWithValue(request.ExpandNicknames);
 
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
 

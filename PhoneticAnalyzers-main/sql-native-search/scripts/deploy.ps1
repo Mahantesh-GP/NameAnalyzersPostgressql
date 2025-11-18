@@ -50,7 +50,8 @@ try {
         '05_search.sql',
         '06_staging.sql',
         '07_nickname_tracking.sql',
-        '08_apply_nicknames_bulk.sql'
+        '08_apply_nicknames_bulk.sql',
+        '09_business_enhancements.sql'
     )
 
     foreach ($file in $filesInOrder) {

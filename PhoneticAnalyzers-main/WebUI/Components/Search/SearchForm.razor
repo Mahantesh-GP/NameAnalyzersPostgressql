@@ -97,19 +97,7 @@
                 </MudSelect>
             </MudItem>
 
-            <!-- Options -->
-            <MudItem xs="12" md="4" Class="d-flex align-center">
-                <MudStack Row Spacing="2">
-                    <MudCheckBox 
-                        @bind-Value="Model.IncludeTrigramSimilarity" 
-                        Label="Trigram"
-                        Color="Color.Primary" />
-                    <MudCheckBox 
-                        @bind-Value="Model.ExpandNicknames" 
-                        Label="Nicknames"
-                        Color="Color.Secondary" />
-                </MudStack>
-            </MudItem>
+            <!-- Options hidden by request: Fuzzy and Nicknames default ON in model -->
 
             <!-- Submit and Clear Buttons -->
             <MudItem xs="12" Class="d-flex justify-center gap-3">

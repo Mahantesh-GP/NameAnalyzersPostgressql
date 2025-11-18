@@ -69,10 +69,10 @@
                                     {
                                         <MudChip T="string" 
                                                  Size="Size.Small" 
-                                                 Color="GetMatchTypeColor(result.MatchType)" 
+                                                 Color="GetMatchBadgeColor(result)" 
                                                  Icon="@GetMatchTypeIcon(result.MatchType)"
                                                  Variant="Variant.Filled">
-                                            @GetMatchTypeLabel(result.MatchType)
+                                            @GetMatchTypeLabel(result)
                                         </MudChip>
                                     }
                                     @if (!string.IsNullOrEmpty(result.NormalizedName) && result.NormalizedName != result.FullName.ToUpperInvariant())
@@ -233,29 +233,79 @@
         _ => Color.Error
     };
 
-    private Color GetMatchTypeColor(string matchType) => matchType switch
+    private Color GetMatchBadgeColor(SearchResult result)
     {
-        "Exact" => Color.Success,
-        "TokenContains" => Color.Success,
-        "NicknameExpansion" => Color.Secondary,
-        "PrimaryDoubleMetaphone" => Color.Info,
-        "AlternateDoubleMetaphone" => Color.Info,
-        "BeiderMorse" => Color.Info,
-        "TrigramSimilarity" => Color.Warning,
-        _ => Color.Default
-    };
+        var classification = GetClassification(result);
+        if (!string.IsNullOrEmpty(classification))
+        {
+            return classification switch
+            {
+                "AllTokensExact" => Color.Success,
+                "AllTokensExactPlusExtra" => Color.Info,
+                "HighCoverageFuzzy" => Color.Warning,
+                "PartialExact" => Color.Warning,
+                _ => Color.Warning
+            };
+        }
 
-    private string GetMatchTypeLabel(string matchType) => matchType switch
+        return result.MatchType switch
+        {
+            "Exact" => Color.Success,
+            "TokenContains" => Color.Success,
+            "NicknameExpansion" => Color.Secondary,
+            "PrimaryDoubleMetaphone" => Color.Info,
+            "AlternateDoubleMetaphone" => Color.Info,
+            "BeiderMorse" => Color.Info,
+            "TrigramSimilarity" => Color.Warning,
+            _ => Color.Default
+        };
+    }
+
+    private string GetMatchTypeLabel(SearchResult result)
     {
-        "Exact" => "Exact Match",
-        "TokenContains" => "Token Match",
-        "NicknameExpansion" => "Nickname",
-        "PrimaryDoubleMetaphone" => "Phonetic (Primary)",
-        "AlternateDoubleMetaphone" => "Phonetic (Alt)",
-        "BeiderMorse" => "Phonetic (BM)",
-        "TrigramSimilarity" => "Fuzzy Match",
-        _ => matchType
-    };
+        if (result.MatchType == "Exact") return "Exact Match";
+        if (result.MatchType == "NicknameExpansion") return "Nickname";
+
+        var classification = GetClassification(result);
+        if (!string.IsNullOrEmpty(classification))
+        {
+            return classification switch
+            {
+                "AllTokensExact" => "All Tokens Exact",
+                "AllTokensExactPlusExtra" => "All Tokens + Extra",
+                "HighCoverageFuzzy" => "High Coverage Fuzzy",
+                "PartialExact" => "Partial Exact",
+                _ => "Fuzzy Match"
+            };
+        }
+
+        return result.MatchType switch
+        {
+            "TokenContains" => "Token Match",
+            "PrimaryDoubleMetaphone" => "Phonetic (Primary)",
+            "AlternateDoubleMetaphone" => "Phonetic (Alt)",
+            "BeiderMorse" => "Phonetic (BM)",
+            "TrigramSimilarity" => "Fuzzy Match",
+            _ => result.MatchType
+        };
+    }
+
+    private static string? GetClassification(SearchResult result)
+    {
+        try
+        {
+            if (result.MatchMetadata.HasValue && result.MatchMetadata.Value.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                var meta = result.MatchMetadata.Value;
+                if (meta.TryGetProperty("classification", out var cls))
+                {
+                    return cls.GetString();
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
 
     private string GetMatchTypeIcon(string matchType) => matchType switch
     {
@@ -325,36 +375,69 @@
         try
         {
             var metadata = result.MatchMetadata.Value;
-            
-            // Check if it's a JSON object (Database-First) or string (Code-First)
-            if (metadata.ValueKind == System.Text.Json.JsonValueKind.String)
-            {
-                // Code-First approach: MatchMetadata is already a string message
-                return metadata.GetString() ?? string.Empty;
-            }
-            
-            // Native SQL approach: Check for displayText first
-            if (metadata.TryGetProperty("displayText", out var displayText))
-            {
-                return displayText.GetString() ?? string.Empty;
-            }
-            
-            // Database-First approach: MatchMetadata is a JSON object
-            var matchType = metadata.TryGetProperty("matchType", out var mt) ? mt.GetString() : result.MatchType;
-            var matchedField = metadata.TryGetProperty("matchedField", out var mf) ? mf.GetString() : null;
-            var matchedValue = metadata.TryGetProperty("matchedValue", out var mv) ? mv.GetString() : null;
-            var matchScore = metadata.TryGetProperty("matchScore", out var ms) ? ms.GetDouble() : result.SimilarityScore;
 
-            return matchType switch
+            // If backend sent a plain string, just use it
+            if (metadata.ValueKind == System.Text.Json.JsonValueKind.String)
+                return metadata.GetString() ?? string.Empty;
+
+            // Prefer friendly, non-technical explanations based on classification
+            string? classification = null;
+            bool hasSuperstring = false;
+            int queryCount = 0;
+            int personCount = 0;
+            string? matchedField = null;
+            string? matchedValue = null;
+            string? searchedName = null;
+            string? matchedName = null;
+
+            if (metadata.TryGetProperty("classification", out var cls)) classification = cls.GetString();
+            if (metadata.TryGetProperty("hasSuperstringPenalty", out var sp)) hasSuperstring = sp.GetBoolean();
+            if (metadata.TryGetProperty("queryTokenCount", out var qtc)) queryCount = qtc.GetInt32();
+            if (metadata.TryGetProperty("personTokenCount", out var ptc)) personCount = ptc.GetInt32();
+            if (metadata.TryGetProperty("matchedField", out var mf)) matchedField = mf.GetString();
+            if (metadata.TryGetProperty("matchedValue", out var mv)) matchedValue = mv.GetString();
+            if (metadata.TryGetProperty("searchedName", out var sn)) searchedName = sn.GetString();
+            if (metadata.TryGetProperty("matchedName", out var mn)) matchedName = mn.GetString();
+
+            // Special cases first
+            if (result.MatchType == "Exact")
             {
-                "Exact" => $"Exact match on '{matchedValue}'",
-                "TrigramSimilarity" => $"Fuzzy match with {matchScore:P0} similarity to '{matchedValue}'",
-                "NicknameExpansion" => $"Matched via nickname expansion to '{matchedValue}'",
-                "PrimaryDoubleMetaphone" => $"Phonetically similar (Double Metaphone) to '{matchedValue}'",
-                "AlternateDoubleMetaphone" => $"Phonetically similar (Alt. Metaphone) to '{matchedValue}'",
-                "BeiderMorse" => $"Phonetically similar (Beider-Morse) to '{matchedValue}'",
-                _ => $"Matched on {matchedField}: '{matchedValue}'"
-            };
+                if (string.Equals(matchedField, "BusinessCore", StringComparison.OrdinalIgnoreCase))
+                    return "Business name matches (ignoring LLC/Inc).";
+                return "Exact match.";
+            }
+
+            if (result.MatchType == "NicknameExpansion" && !string.IsNullOrEmpty(searchedName) && !string.IsNullOrEmpty(matchedName))
+            {
+                return $"Matched via common nickname: {searchedName} → {matchedName}.";
+            }
+
+            // Phonetic fallbacks
+            if (result.MatchType is "DoubleMetaphone" or "Metaphone" or "Soundex")
+                return "Sounds like your search.";
+
+            // Friendly text for classifications
+            if (!string.IsNullOrEmpty(classification))
+            {
+                return classification switch
+                {
+                    "AllTokensExact" => "All your words match.",
+                    "AllTokensExactPlusExtra" => personCount > queryCount
+                        ? "All your words match; plus extra words."
+                        : "All your words match.",
+                    "HighCoverageFuzzy" => "Most words matched closely.",
+                    "PartialExact" => hasSuperstring
+                        ? "Close match; includes a longer similar name."
+                        : "Close match; some words matched.",
+                    _ => "Close match."
+                };
+            }
+
+            // Fallback: concise, non-technical message
+            if (!string.IsNullOrEmpty(matchedField) && !string.IsNullOrEmpty(matchedValue))
+                return $"Matched on {matchedField}: {matchedValue}.";
+
+            return "Close match to your search.";
         }
         catch
         {
