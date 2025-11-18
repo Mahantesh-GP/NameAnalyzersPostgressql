@@ -33,7 +33,10 @@ public class NicknameEnrichmentService
     {
         _connectionString = connectionString;
         _llmConfig = llmConfig;
-        _httpClient = new HttpClient();
+        _httpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromMinutes(5) // Increased timeout for batch processing
+        };
         
         // Add API key header for Azure OpenAI
         if (_llmConfig.Provider == LLMProvider.AzureOpenAI && !string.IsNullOrEmpty(_llmConfig.ApiKey))
@@ -207,17 +210,25 @@ JSON OUTPUT:";
 
     private Dictionary<string, List<string>> ParseBatchNicknamesFromJson(string content)
     {
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            Console.WriteLine("⚠ Empty or null content received from LLM");
+            return new Dictionary<string, List<string>>();
+        }
+
         try
         {
             // Try to parse as JSON object directly
             var options = new JsonSerializerOptions
             {
-                PropertyNameCaseInsensitive = true
+                PropertyNameCaseInsensitive = true,
+                AllowTrailingCommas = true,
+                ReadCommentHandling = JsonCommentHandling.Skip
             };
             var nicknames = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(content, options);
             return nicknames ?? new Dictionary<string, List<string>>();
         }
-        catch
+        catch (JsonException)
         {
             // Try to extract JSON object from markdown or text
             var jsonStart = content.IndexOf('{');
@@ -230,19 +241,23 @@ JSON OUTPUT:";
                 {
                     var options = new JsonSerializerOptions
                     {
-                        PropertyNameCaseInsensitive = true
+                        PropertyNameCaseInsensitive = true,
+                        AllowTrailingCommas = true,
+                        ReadCommentHandling = JsonCommentHandling.Skip
                     };
                     var nicknames = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(jsonString, options);
                     return nicknames ?? new Dictionary<string, List<string>>();
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Failed to parse batch nicknames JSON: {ex.Message}");
-                    Console.WriteLine($"Content: {jsonString.Substring(0, Math.Min(200, jsonString.Length))}...");
+                    Console.WriteLine($"⚠ Failed to parse batch nicknames JSON: {ex.Message}");
+                    Console.WriteLine($"⚠ Content preview (first 300 chars): {content.Substring(0, Math.Min(300, content.Length))}");
                     return new Dictionary<string, List<string>>();
                 }
             }
             
+            Console.WriteLine($"⚠ No valid JSON object found in response");
+            Console.WriteLine($"⚠ Content preview: {content.Substring(0, Math.Min(200, content.Length))}");
             return new Dictionary<string, List<string>>();
         }
     }
@@ -348,16 +363,23 @@ JSON OUTPUT:";
         int enriched = 0;
         int totalNicknames = 0;
         int batchNumber = 0;
+        int failedBatches = 0;
         var batches = names.Chunk(batchSize).ToList();
         
         Console.WriteLine($"Total batches: {batches.Count}");
+        Console.WriteLine($"LLM Provider: {_llmConfig.Provider}");
+        Console.WriteLine($"LLM Model: {_llmConfig.Model}");
+        Console.WriteLine($"Endpoint: {_llmConfig.Endpoint.Substring(0, Math.Min(60, _llmConfig.Endpoint.Length))}...\n");
 
         foreach (var batch in batches)
         {
             batchNumber++;
             try
             {
-                Console.WriteLine($"\n[Batch {batchNumber}/{batches.Count}] Processing {batch.Count()} names...");
+                Console.WriteLine($"[Batch {batchNumber}/{batches.Count}] Processing {batch.Count()} names...");
+                Console.Write($"  Names: {string.Join(", ", batch.Take(5))}");
+                if (batch.Count() > 5) Console.Write($" ... +{batch.Count() - 5} more");
+                Console.WriteLine();
                 
                 var batchList = batch.ToList();
                 var nicknameResults = await GetNicknamesFromLLMBatchAsync(batchList);
@@ -370,39 +392,51 @@ JSON OUTPUT:";
                     enriched += nicknameResults.Count;
                     totalNicknames += batchNicknameCount;
                     
-                    Console.WriteLine($"✓ Added {batchNicknameCount} nicknames for {nicknameResults.Count} names");
+                    Console.WriteLine($"  ✓ Added {batchNicknameCount} nicknames for {nicknameResults.Count} names");
                     
                     // Show sample results
                     var sampleResults = nicknameResults.Take(3);
                     foreach (var (name, nicks) in sampleResults)
                     {
-                        Console.WriteLine($"  {name} → {string.Join(", ", nicks)}");
+                        Console.WriteLine($"    {name} → {string.Join(", ", nicks)}");
                     }
                     if (nicknameResults.Count > 3)
                     {
-                        Console.WriteLine($"  ... and {nicknameResults.Count - 3} more");
+                        Console.WriteLine($"    ... and {nicknameResults.Count - 3} more");
                     }
                 }
                 else
                 {
-                    Console.WriteLine("⚠ No nicknames found in this batch");
+                    Console.WriteLine("  ⚠ No nicknames found in this batch (empty response or no common nicknames)");
+                    failedBatches++;
                 }
 
                 processed += batch.Count();
-                Console.WriteLine($"Progress: {processed}/{names.Count} names ({enriched} enriched, {totalNicknames} total nicknames)");
+                Console.WriteLine($"  Progress: {processed}/{names.Count} names | Enriched: {enriched} | Total nicknames: {totalNicknames}");
 
                 // Rate limiting between batches - less aggressive since batching reduces calls
                 if (batchNumber < batches.Count)
                 {
-                    Console.WriteLine("Waiting 2s before next batch...");
+                    Console.WriteLine("  Waiting 2s before next batch...\n");
                     await Task.Delay(2000);
                 }
             }
+            catch (HttpRequestException httpEx)
+            {
+                failedBatches++;
+                Console.WriteLine($"  ❌ Network error in batch {batchNumber}: {httpEx.Message}");
+                Console.WriteLine($"  Batch names: {string.Join(", ", batch.Take(5))}...");
+                Console.WriteLine($"  Skipping batch and continuing...\n");
+                processed += batch.Count();
+            }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Error processing batch {batchNumber}: {ex.Message}");
-                Console.WriteLine($"Batch names: {string.Join(", ", batch.Take(5))}...");
-                // Continue with next batch instead of stopping
+                failedBatches++;
+                Console.WriteLine($"  ❌ Error processing batch {batchNumber}: {ex.Message}");
+                Console.WriteLine($"  Exception type: {ex.GetType().Name}");
+                Console.WriteLine($"  Batch names: {string.Join(", ", batch.Take(5))}...");
+                Console.WriteLine($"  Skipping batch and continuing...\n");
+                processed += batch.Count();
             }
         }
 
@@ -412,6 +446,8 @@ JSON OUTPUT:";
         Console.WriteLine($"Total nicknames added: {totalNicknames}");
         Console.WriteLine($"Average nicknames per name: {(enriched > 0 ? (double)totalNicknames / enriched : 0):F1}");
         Console.WriteLine($"LLM calls made: {batches.Count} (batch size: {batchSize})");
+        Console.WriteLine($"Failed batches: {failedBatches}/{batches.Count}");
+        Console.WriteLine($"Success rate: {(batches.Count > 0 ? ((batches.Count - failedBatches) * 100.0 / batches.Count) : 0):F1}%");
         Console.WriteLine($"Cost reduction vs single calls: {(names.Count > 0 ? (1 - (double)batches.Count / names.Count) * 100 : 0):F0}%");
     }
 
