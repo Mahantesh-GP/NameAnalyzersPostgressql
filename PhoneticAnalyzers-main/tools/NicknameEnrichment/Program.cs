@@ -31,13 +31,43 @@ var service = new NicknameEnrichmentService(connectionString, llmConfig);
 
 try
 {
-    await service.EnrichAllNicknamesAsync();
+    // Test LLM with a small batch first
+    Console.WriteLine("🧪 Testing LLM with sample names...");
+    var testNames = new List<string> { "ROBERT", "WILLIAM", "ELIZABETH" };
+    var testResults = await service.GetNicknamesFromLLMBatchAsync(testNames);
+    
+    if (testResults.Count == 0)
+    {
+        Console.WriteLine("❌ LLM test failed - no nicknames returned");
+        Console.WriteLine("   Check your LLM configuration and endpoint");
+        Console.WriteLine("   See TROUBLESHOOTING.md for help");
+        return 1;
+    }
+    
+    Console.WriteLine($"✓ LLM test successful - received {testResults.Count} results:");
+    foreach (var (name, nicks) in testResults.Take(3))
+    {
+        Console.WriteLine($"  {name} → {string.Join(", ", nicks)}");
+    }
+    Console.WriteLine();
+    
+    Console.WriteLine("Do you want to continue with full enrichment? (y/n)");
+    var response = Console.ReadLine()?.Trim().ToLower();
+    
+    if (response != "y" && response != "yes")
+    {
+        Console.WriteLine("Enrichment cancelled.");
+        return 0;
+    }
+    
+    await service.EnrichAllNicknamesAsync(batchSize: 50);  // Reduced default batch size
     Console.WriteLine("\n✓ Enrichment completed successfully!");
 }
 catch (Exception ex)
 {
     Console.WriteLine($"\n✗ Error: {ex.Message}");
-    Console.WriteLine(ex.StackTrace);
+    Console.WriteLine($"Exception Type: {ex.GetType().Name}");
+    Console.WriteLine($"Stack Trace:\n{ex.StackTrace}");
     return 1;
 }
 

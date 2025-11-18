@@ -128,20 +128,36 @@ JSON OUTPUT:";
             prompt = prompt,
             stream = false,
             temperature = _llmConfig.Temperature,
-            options = new { num_predict = 2000 }
+            options = new { num_predict = 2000 },
+            format = "json"  // Force JSON output format
         };
 
-        var response = await _httpClient.PostAsJsonAsync(_llmConfig.Endpoint, request);
-        response.EnsureSuccessStatusCode();
-
-        var result = await response.Content.ReadFromJsonAsync<OllamaResponse>();
-        
-        if (result?.Response != null)
+        try
         {
-            return ParseBatchNicknamesFromJson(result.Response);
-        }
+            var response = await _httpClient.PostAsJsonAsync(_llmConfig.Endpoint, request);
+            response.EnsureSuccessStatusCode();
 
-        return new Dictionary<string, List<string>>();
+            var result = await response.Content.ReadFromJsonAsync<OllamaResponse>();
+            
+            if (result?.Response != null)
+            {
+                Console.WriteLine($"  📥 LLM Response length: {result.Response.Length} chars");
+                return ParseBatchNicknamesFromJson(result.Response);
+            }
+
+            Console.WriteLine("  ⚠ LLM returned null response");
+            return new Dictionary<string, List<string>>();
+        }
+        catch (HttpRequestException httpEx)
+        {
+            Console.WriteLine($"  ❌ HTTP Error: {httpEx.Message}");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌ Error calling Ollama: {ex.Message}");
+            throw;
+        }
     }
 
     private async Task<List<string>> GetNicknamesFromOllamaAsync(string name)
@@ -187,18 +203,33 @@ JSON OUTPUT:";
             response_format = new { type = "json_object" }
         };
 
-        var response = await _httpClient.PostAsJsonAsync(_llmConfig.Endpoint, request);
-        response.EnsureSuccessStatusCode();
-
-        var result = await response.Content.ReadFromJsonAsync<AzureOpenAIResponse>();
-        
-        var content = result?.Choices?.FirstOrDefault()?.Message?.Content;
-        if (!string.IsNullOrEmpty(content))
+        try
         {
-            return ParseBatchNicknamesFromJson(content);
-        }
+            var response = await _httpClient.PostAsJsonAsync(_llmConfig.Endpoint, request);
+            response.EnsureSuccessStatusCode();
 
-        return new Dictionary<string, List<string>>();
+            var result = await response.Content.ReadFromJsonAsync<AzureOpenAIResponse>();
+            
+            var content = result?.Choices?.FirstOrDefault()?.Message?.Content;
+            if (!string.IsNullOrEmpty(content))
+            {
+                Console.WriteLine($"  📥 LLM Response length: {content.Length} chars");
+                return ParseBatchNicknamesFromJson(content);
+            }
+
+            Console.WriteLine("  ⚠ LLM returned null response");
+            return new Dictionary<string, List<string>>();
+        }
+        catch (HttpRequestException httpEx)
+        {
+            Console.WriteLine($"  ❌ HTTP Error: {httpEx.Message}");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ❌ Error calling Azure OpenAI: {ex.Message}");
+            throw;
+        }
     }
 
     private async Task<List<string>> GetNicknamesFromAzureOpenAIAsync(string name)
