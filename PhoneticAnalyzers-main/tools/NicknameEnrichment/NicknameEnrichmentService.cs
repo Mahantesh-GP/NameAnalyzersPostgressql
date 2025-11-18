@@ -213,13 +213,44 @@ JSON OUTPUT:";
             
             // Read raw response for debugging
             var rawContent = await response.Content.ReadAsStringAsync();
+            
+            if (string.IsNullOrWhiteSpace(rawContent))
+            {
+                Console.WriteLine($"  ❌ Azure OpenAI returned empty response");
+                Console.WriteLine($"  HTTP Status: {(int)response.StatusCode} {response.ReasonPhrase}");
+                Console.WriteLine($"  Check your endpoint URL and API key");
+                return new Dictionary<string, List<string>>();
+            }
+            
             Console.WriteLine($"  📥 Raw Response length: {rawContent.Length} chars");
             
             if (!response.IsSuccessStatusCode)
             {
                 Console.WriteLine($"  ❌ HTTP {(int)response.StatusCode}: {response.ReasonPhrase}");
-                Console.WriteLine($"  Response: {rawContent.Substring(0, Math.Min(500, rawContent.Length))}");
-                response.EnsureSuccessStatusCode();
+                Console.WriteLine($"  Response body: {rawContent}");
+                
+                // Try to parse error details
+                try
+                {
+                    using var errorDoc = JsonDocument.Parse(rawContent);
+                    if (errorDoc.RootElement.TryGetProperty("error", out var errorProp))
+                    {
+                        if (errorProp.TryGetProperty("message", out var message))
+                        {
+                            Console.WriteLine($"  Error message: {message.GetString()}");
+                        }
+                        if (errorProp.TryGetProperty("code", out var code))
+                        {
+                            Console.WriteLine($"  Error code: {code.GetString()}");
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore parsing errors, raw content already shown
+                }
+                
+                return new Dictionary<string, List<string>>();
             }
 
             // Parse the JSON response
@@ -233,9 +264,13 @@ JSON OUTPUT:";
             }
             catch (JsonException jsonEx)
             {
-                Console.WriteLine($"  ❌ Failed to parse Azure OpenAI response: {jsonEx.Message}");
-                Console.WriteLine($"  Response preview: {rawContent.Substring(0, Math.Min(300, rawContent.Length))}");
-                throw;
+                Console.WriteLine($"  ❌ Failed to parse Azure OpenAI response as JSON: {jsonEx.Message}");
+                Console.WriteLine($"  This usually means the endpoint URL is incorrect");
+                Console.WriteLine($"  Response preview: {rawContent.Substring(0, Math.Min(500, rawContent.Length))}");
+                Console.WriteLine($"  ");
+                Console.WriteLine($"  Expected endpoint format:");
+                Console.WriteLine($"  https://YOUR_RESOURCE.openai.azure.com/openai/deployments/YOUR_DEPLOYMENT/chat/completions?api-version=2024-08-01-preview");
+                return new Dictionary<string, List<string>>();
             }
             
             var content = result?.Choices?.FirstOrDefault()?.Message?.Content;
