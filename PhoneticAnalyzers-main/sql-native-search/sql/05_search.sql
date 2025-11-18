@@ -81,7 +81,16 @@ WITH params AS (
     pn.name_token AS matched_token,
     similarity(pn.name_token, qt.token) AS sim_score
   FROM qtokens_weighted qt
-  JOIN person_names pn ON similarity(pn.name_token, qt.token) >= min_similarity
+  JOIN person_names pn 
+    ON (
+         -- Primary: trigram similarity meets threshold
+         similarity(pn.name_token, qt.token) >= min_similarity
+         -- Fallback: allow single-edit typos for longer tokens (e.g., SMIOTH -> SMITH)
+         OR (
+              length(qt.token) >= 5 
+              AND levenshtein_less_equal(pn.name_token, qt.token, 1) <= 1
+            )
+       )
 ), trigram_matches AS (
   -- Aggregate match quality: count matched tokens, sum similarity, compute avg
   -- Apply token weights so "John Miller" matters more than "Solutions Private"
