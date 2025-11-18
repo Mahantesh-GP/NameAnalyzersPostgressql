@@ -247,48 +247,78 @@ JSON OUTPUT:";
             return new Dictionary<string, List<string>>();
         }
 
+        // Extract JSON object from markdown or text if needed
+        var jsonStart = content.IndexOf('{');
+        var jsonEnd = content.LastIndexOf('}');
+        
+        if (jsonStart >= 0 && jsonEnd > jsonStart)
+        {
+            content = content.Substring(jsonStart, jsonEnd - jsonStart + 1);
+        }
+
         try
         {
-            // Try to parse as JSON object directly
-            var options = new JsonSerializerOptions
+            // Parse as flexible object first (handles mixed string/array values)
+            using var doc = JsonDocument.Parse(content);
+            var result = new Dictionary<string, List<string>>();
+
+            foreach (var property in doc.RootElement.EnumerateObject())
             {
-                PropertyNameCaseInsensitive = true,
-                AllowTrailingCommas = true,
-                ReadCommentHandling = JsonCommentHandling.Skip
-            };
-            var nicknames = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(content, options);
-            return nicknames ?? new Dictionary<string, List<string>>();
-        }
-        catch (JsonException)
-        {
-            // Try to extract JSON object from markdown or text
-            var jsonStart = content.IndexOf('{');
-            var jsonEnd = content.LastIndexOf('}');
-            
-            if (jsonStart >= 0 && jsonEnd > jsonStart)
-            {
-                var jsonString = content.Substring(jsonStart, jsonEnd - jsonStart + 1);
-                try
+                var name = property.Name.ToUpperInvariant();
+                var nicknames = new List<string>();
+
+                switch (property.Value.ValueKind)
                 {
-                    var options = new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                        AllowTrailingCommas = true,
-                        ReadCommentHandling = JsonCommentHandling.Skip
-                    };
-                    var nicknames = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(jsonString, options);
-                    return nicknames ?? new Dictionary<string, List<string>>();
+                    case JsonValueKind.Array:
+                        // Normal case: ["BOB", "ROB", "BOBBY"]
+                        foreach (var item in property.Value.EnumerateArray())
+                        {
+                            if (item.ValueKind == JsonValueKind.String)
+                            {
+                                var nick = item.GetString();
+                                if (!string.IsNullOrWhiteSpace(nick))
+                                {
+                                    nicknames.Add(nick.ToUpperInvariant());
+                                }
+                            }
+                        }
+                        break;
+
+                    case JsonValueKind.String:
+                        // Malformed case: "[\"BOB\",\"ROB\"]" as string
+                        var stringValue = property.Value.GetString();
+                        if (!string.IsNullOrWhiteSpace(stringValue))
+                        {
+                            // Try to parse the string as JSON array
+                            try
+                            {
+                                var innerArray = JsonSerializer.Deserialize<List<string>>(stringValue);
+                                if (innerArray != null)
+                                {
+                                    nicknames.AddRange(innerArray.Select(n => n.ToUpperInvariant()));
+                                }
+                            }
+                            catch
+                            {
+                                // If that fails, treat the whole string as a single nickname
+                                nicknames.Add(stringValue.ToUpperInvariant());
+                            }
+                        }
+                        break;
                 }
-                catch (Exception ex)
+
+                if (nicknames.Count > 0)
                 {
-                    Console.WriteLine($"⚠ Failed to parse batch nicknames JSON: {ex.Message}");
-                    Console.WriteLine($"⚠ Content preview (first 300 chars): {content.Substring(0, Math.Min(300, content.Length))}");
-                    return new Dictionary<string, List<string>>();
+                    result[name] = nicknames;
                 }
             }
-            
-            Console.WriteLine($"⚠ No valid JSON object found in response");
-            Console.WriteLine($"⚠ Content preview: {content.Substring(0, Math.Min(200, content.Length))}");
+
+            return result;
+        }
+        catch (JsonException ex)
+        {
+            Console.WriteLine($"⚠ Failed to parse batch nicknames JSON: {ex.Message}");
+            Console.WriteLine($"⚠ Content preview (first 300 chars): {content.Substring(0, Math.Min(300, content.Length))}");
             return new Dictionary<string, List<string>>();
         }
     }
@@ -326,7 +356,7 @@ JSON OUTPUT:";
     }
 
     /// <summary>
-    /// Insert nicknames into nickname_map table (batch optimized)
+    /// Insert nicknames into nickname_maps table (batch optimized)
     /// </summary>
     public async Task InsertNicknamesBatchAsync(Dictionary<string, List<string>> nicknamesByName)
     {
@@ -341,9 +371,9 @@ JSON OUTPUT:";
         try
         {
             var sql = @"
-                INSERT INTO nickname_map (normalized_original, normalized_nickname)
-                VALUES (normalize_name(@original), normalize_name(@nickname))
-                ON CONFLICT (normalized_original, normalized_nickname) DO NOTHING";
+                INSERT INTO nickname_maps (canonical_name, nickname)
+                VALUES (@original, @nickname)
+                ON CONFLICT (canonical_name, nickname) DO NOTHING";
 
             foreach (var (originalName, nicknames) in nicknamesByName)
             {
@@ -366,7 +396,7 @@ JSON OUTPUT:";
     }
 
     /// <summary>
-    /// Insert nicknames into nickname_map table (single name)
+    /// Insert nicknames into nickname_maps table (single name)
     /// </summary>
     public async Task InsertNicknamesAsync(string originalName, List<string> nicknames)
     {
