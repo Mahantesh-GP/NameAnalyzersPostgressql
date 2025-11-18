@@ -169,6 +169,8 @@ JSON OUTPUT:";
 
     private async Task<Dictionary<string, List<string>>> GetNicknamesFromAzureOpenAIBatchAsync(List<string> names)
     {
+        Console.WriteLine($"  📤 Calling Azure OpenAI with {names.Count} names...");
+        
         var namesList = string.Join("\n", names.Select((n, i) => $"{i + 1}. {n}"));
         var systemPrompt = "You are an expert assistant that provides nickname variants for given names. You return structured JSON data only.";
         var userPrompt = $@"Given the following list of names, provide all common nickname variants for each name.
@@ -202,22 +204,50 @@ JSON OUTPUT:";
             max_tokens = 2000,
             response_format = new { type = "json_object" }
         };
+        
+        Console.WriteLine($"  🔗 Endpoint: {_llmConfig.Endpoint.Substring(0, Math.Min(80, _llmConfig.Endpoint.Length))}...");
 
         try
         {
             var response = await _httpClient.PostAsJsonAsync(_llmConfig.Endpoint, request);
-            response.EnsureSuccessStatusCode();
+            
+            // Read raw response for debugging
+            var rawContent = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"  📥 Raw Response length: {rawContent.Length} chars");
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"  ❌ HTTP {(int)response.StatusCode}: {response.ReasonPhrase}");
+                Console.WriteLine($"  Response: {rawContent.Substring(0, Math.Min(500, rawContent.Length))}");
+                response.EnsureSuccessStatusCode();
+            }
 
-            var result = await response.Content.ReadFromJsonAsync<AzureOpenAIResponse>();
+            // Parse the JSON response
+            AzureOpenAIResponse? result;
+            try
+            {
+                result = JsonSerializer.Deserialize<AzureOpenAIResponse>(rawContent, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+            }
+            catch (JsonException jsonEx)
+            {
+                Console.WriteLine($"  ❌ Failed to parse Azure OpenAI response: {jsonEx.Message}");
+                Console.WriteLine($"  Response preview: {rawContent.Substring(0, Math.Min(300, rawContent.Length))}");
+                throw;
+            }
             
             var content = result?.Choices?.FirstOrDefault()?.Message?.Content;
             if (!string.IsNullOrEmpty(content))
             {
-                Console.WriteLine($"  📥 LLM Response length: {content.Length} chars");
+                Console.WriteLine($"  📥 Message Content length: {content.Length} chars");
+                Console.WriteLine($"  📄 Content preview: {content.Substring(0, Math.Min(150, content.Length))}...");
                 return ParseBatchNicknamesFromJson(content);
             }
 
-            Console.WriteLine("  ⚠ LLM returned null response");
+            Console.WriteLine("  ⚠ LLM returned null or empty message content");
+            Console.WriteLine($"  Full response: {rawContent}");
             return new Dictionary<string, List<string>>();
         }
         catch (HttpRequestException httpEx)
@@ -228,6 +258,7 @@ JSON OUTPUT:";
         catch (Exception ex)
         {
             Console.WriteLine($"  ❌ Error calling Azure OpenAI: {ex.Message}");
+            Console.WriteLine($"  Exception type: {ex.GetType().Name}");
             throw;
         }
     }
