@@ -42,7 +42,7 @@ WITH params AS (
     END AS token_weight
   FROM qtokens
 ), exact_matches AS (
-  -- Full name exact match
+  -- Full name exact match (individuals and businesses)
   SELECT pr.person_id, pr.full_name, 'Exact'::text AS match_type,
          1.0::float8 AS similarity_score,
          'FullName'::text AS matched_field,
@@ -55,8 +55,24 @@ WITH params AS (
          ) AS match_metadata
   FROM params p
   JOIN person pr ON pr.normalized_name = p.q
+  UNION ALL
+  -- Business core name match (e.g., "ABC SOLUTIONS" matches "ABC SOLUTIONS LLC")
+  SELECT pr.person_id, pr.full_name, 'Exact'::text AS match_type,
+         0.95::float8 AS similarity_score,
+         'BusinessCore'::text AS matched_field,
+         pr.business_core_name AS matched_value,
+         pr.county,
+         pr.flag,
+         jsonb_build_object(
+           'explanation', 'Business core name match (suffix variants)',
+           'displayText', 'Matched core business name (ignoring LLC/INC/etc)'
+         ) AS match_metadata
+  FROM params p
+  JOIN person pr ON pr.flag = 'B' 
+    AND pr.business_core_name IS NOT NULL
+    AND (pr.business_core_name = p.q OR pr.business_core_name = normalize_business_core(p.q))
 ), nickname_matches AS (
-  -- Matches via nickname expansion (e.g., bob → robert)
+  -- Matches via nickname expansion (e.g., bob → robert) - INDIVIDUALS ONLY
   SELECT pn.person_id, pr.full_name, 'Exact'::text AS match_type,
          1.0::float8 AS similarity_score,
          'NicknameExpansion'::text AS matched_field,
@@ -71,7 +87,7 @@ WITH params AS (
          ) AS match_metadata
   FROM qtokens_weighted qt
   JOIN person_names pn ON pn.name_token = qt.token AND pn.is_nickname = TRUE
-  JOIN person pr ON pr.person_id = pn.person_id
+  JOIN person pr ON pr.person_id = pn.person_id AND pr.flag <> 'B'  -- Exclude businesses
 ), token_matches AS (
   -- Collect all token-level matches with their similarity scores and weights
   SELECT 

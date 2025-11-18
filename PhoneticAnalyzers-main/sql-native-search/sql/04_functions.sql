@@ -62,7 +62,7 @@ CREATE OR REPLACE FUNCTION add_token_with_phonetics(
   );
 $$;
 
--- Ingest a single person: tokenize, generate phonetics, expand nicknames
+-- Ingest a single person: tokenize, generate phonetics, expand nicknames (individuals only)
 CREATE OR REPLACE FUNCTION ingest_person(
   p_external_id TEXT,
   p_full_name   TEXT,
@@ -72,6 +72,7 @@ CREATE OR REPLACE FUNCTION ingest_person(
 DECLARE
   v_person_id BIGINT;
   v_norm TEXT := normalize_name(p_full_name);
+  v_is_business BOOLEAN := (p_flag = 'B');
   r RECORD;
   n RECORD;
 BEGIN
@@ -84,14 +85,16 @@ BEGIN
   FOR r IN SELECT * FROM tokenize_name(v_norm) LOOP
     PERFORM add_token_with_phonetics(v_person_id, r.token, r.token_position);
 
-    -- Nickname expansion for this token
-    FOR n IN (
-      SELECT nickname FROM nickname_maps WHERE canonical_name = r.token
-      UNION ALL
-      SELECT canonical_name FROM nickname_maps WHERE is_bidirectional AND nickname = r.token
-    ) LOOP
-      PERFORM add_token_with_phonetics(v_person_id, n.nickname, r.token_position);
-    END LOOP;
+    -- Nickname expansion ONLY for individuals (flag='I'), NOT businesses (flag='B')
+    IF NOT v_is_business THEN
+      FOR n IN (
+        SELECT nickname FROM nickname_maps WHERE canonical_name = r.token
+        UNION ALL
+        SELECT canonical_name FROM nickname_maps WHERE is_bidirectional AND nickname = r.token
+      ) LOOP
+        PERFORM add_token_with_phonetics(v_person_id, n.nickname, r.token_position);
+      END LOOP;
+    END IF;
   END LOOP;
 
   RETURN v_person_id;
