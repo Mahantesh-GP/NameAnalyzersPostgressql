@@ -10,11 +10,33 @@
         <!-- Header with Stats -->
         <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
             <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
+                <MudIcon Icon="@(IsStreaming ? Icons.Material.Filled.Stream : Icons.Material.Filled.CheckCircle)" 
+                         Color="@(IsStreaming ? Color.Info : Color.Success)" 
+                         Size="Size.Large" />
                 <div>
-                    <MudText Typo="Typo.h6">Search Results</MudText>
+                    <MudText Typo="Typo.h6">
+                        Search Results
+                        @if (IsStreaming)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Text" Style="margin-left: 8px;">
+                                Live
+                            </MudChip>
+                        }
+                    </MudText>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        Found @Response.TotalMatches matches in @Response.ExecutionTime.ToString("F0")ms
+                        @if (IsStreaming)
+                        {
+                            var currentCount = Response?.Results?.Count ?? 0;
+                            <span>Streaming: @currentCount result@(currentCount != 1 ? "s" : "") received...</span>
+                        }
+                        else if (Response?.TotalMatches > 0)
+                        {
+                            <span>Found @Response.TotalMatches matches in @Response.ExecutionTime.ToString("F0")ms</span>
+                        }
+                        else
+                        {
+                            <span>Search completed</span>
+                        }
                     </MudText>
                     @if (Response.Results?.Any() == true)
                     {
@@ -56,11 +78,11 @@
                     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
                         <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" />
                         <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
-                            Strong Matches (@strongMatches.Count)
+                            High-Confidence Matches (@strongMatches.Count)
                         </MudText>
                     </MudStack>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        High-confidence results: Exact matches, nicknames, and close fuzzy matches (&gt;=72%)
+                        Exact matches, nicknames, and close fuzzy matches (score &gt;=72%)
                     </MudText>
                 </MudAlert>
 
@@ -199,16 +221,16 @@
                             <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
                                 <MudIcon Icon="@Icons.Material.Filled.FilterList" Color="Color.Info" />
                                 <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
-                                    Additional Possible Matches (@additionalMatches.Count)
+                                    Lower-Confidence Matches (@additionalMatches.Count)
                                 </MudText>
                                 <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
-                                    Lower confidence
+                                    Score &lt;72%
                                 </MudChip>
                             </MudStack>
                         </TitleContent>
                         <ChildContent>
                             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
-                                These results have lower similarity scores (&lt;72%) but may still be relevant. Includes partial matches and phonetic variations.
+                                Partial matches, phonetic variations, and fuzzy matches with lower similarity scores
                             </MudText>
                             <MudStack Spacing="3">
                                 @for (int i = 0; i < additionalMatches.Count; i++)
@@ -386,6 +408,7 @@
 
 @code {
     [Parameter] public AdvancedSearchResponse? Response { get; set; }
+    [Parameter] public bool IsStreaming { get; set; }
 
     private (int Exact, int Nickname, int Fuzzy, int Phonetic) GetLiveCounts(IEnumerable<SearchResult> results)
     {

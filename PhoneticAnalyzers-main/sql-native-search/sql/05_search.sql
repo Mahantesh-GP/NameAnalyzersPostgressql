@@ -108,23 +108,44 @@ exact_matches AS (
   JOIN person pr ON pr.flag = 'B' 
     AND pr.business_core_name IS NOT NULL
     AND (pr.business_core_name = p.q OR pr.business_core_name = normalize_business_core(p.q))
-), nickname_matches AS (
-  -- Matches via nickname expansion using pre-expanded tokens (INDIVIDUALS ONLY)
-  SELECT pn.person_id, pr.full_name, 'Nickname'::text AS match_type,
-         0.98::float8 AS similarity_score,
-         'NicknameExpansion'::text AS matched_field,
-         pn.name_token AS matched_value,
-         pr.county,
-         pr.flag,
-         jsonb_build_object(
-           'explanation', 'Nickname expansion match',
-           'displayText', 'Matched via nickname expansion'
-         ) AS match_metadata
+), nickname_matches_raw AS (
+  -- Collect all nickname token matches
+  SELECT 
+    pn.person_id,
+    eqt.token AS query_token,
+    eqt.token_weight,
+    pn.name_token AS matched_token
   FROM expanded_qtokens eqt
   JOIN person_names pn ON pn.name_token = eqt.token
-  JOIN person pr ON pr.person_id = pn.person_id AND pr.flag <> 'B'  -- Exclude businesses
   WHERE include_nicknames = TRUE
-    AND NOT EXISTS (SELECT 1 FROM early_exact)  -- Skip if exact match found
+    AND NOT EXISTS (SELECT 1 FROM early_exact)
+), nickname_matches AS (
+  -- Score nickname matches based on coverage (like fuzzy), not flat 98%
+  SELECT 
+    nmr.person_id,
+    pr.full_name,
+    'NicknameExpansion'::text AS match_type,
+    LEAST(
+      0.75 + 0.23 * (SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)),
+      0.98
+    ) AS similarity_score,
+    'NicknameExpansion'::text AS matched_field,
+    STRING_AGG(DISTINCT nmr.matched_token, ', ' ORDER BY nmr.matched_token) AS matched_value,
+    pr.county,
+    pr.flag,
+    jsonb_build_object(
+      'explanation', 'Nickname expansion match',
+      'matchedTokens', COUNT(DISTINCT nmr.query_token),
+      'totalQueryTokens', (SELECT COUNT(*) FROM qtokens_weighted),
+      'coverage', ROUND((SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0) * 100)::numeric, 1),
+      'displayText', 'Matched ' || COUNT(DISTINCT nmr.query_token) || ' of ' || (SELECT COUNT(*) FROM qtokens_weighted) || ' tokens via nickname'
+    ) AS match_metadata
+  FROM nickname_matches_raw nmr
+  JOIN person pr ON pr.person_id = nmr.person_id AND pr.flag <> 'B'  -- Exclude businesses
+  WHERE include_nicknames = TRUE
+  GROUP BY nmr.person_id, pr.full_name, pr.county, pr.flag
+  -- Only keep nickname matches where at least 50% of query tokens matched
+  HAVING (SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)) >= 0.5
 ), token_matches AS (
   -- PHASE 2 OPTIMIZATION: Collect token matches with LIMIT to cap expensive fuzzy matching
   SELECT 

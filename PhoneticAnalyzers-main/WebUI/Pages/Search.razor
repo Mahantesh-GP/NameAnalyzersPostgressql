@@ -5,6 +5,7 @@
 @inject IConfiguration Config
 @inject IJSRuntime JS
 @using Microsoft.JSInterop
+@implements IDisposable
 
 <PageTitle>Advanced Name Search - Phonetic Analyzers</PageTitle>
 
@@ -28,9 +29,28 @@
 <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
     <MudSwitch T="bool" @bind-Checked="_streamEnabled" Color="Color.Primary" />
     <MudText Typo="Typo.body2">Stream results (exact & nicknames first)</MudText>
+    @if (_isStreaming)
+    {
+        <MudChip T="string" Size="Size.Small" Color="Color.Info" Icon="@Icons.Material.Filled.Stream" Variant="Variant.Filled">
+            <MudText Typo="Typo.caption" Style="font-weight: 600;">Streaming results...</MudText>
+        </MudChip>
+    }
 </MudStack>
 
-<SearchResults Response="_searchResponse" />
+@if (_isStreaming && (_searchResponse == null || !_searchResponse.Results.Any()))
+{
+    <MudPaper Class="pa-6 mt-4 text-center" Elevation="2">
+        <MudStack AlignItems="AlignItems.Center" Spacing="3">
+            <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+            <MudText Typo="Typo.h6" Color="Color.Primary">Loading results...</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                Exact matches and nicknames will appear first, followed by similar results
+            </MudText>
+        </MudStack>
+    </MudPaper>
+}
+
+<SearchResults Response="_searchResponse" IsStreaming="_isStreaming" />
 
 <MudDialog @bind-Visible="_showHelpDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
     <TitleContent>
@@ -387,7 +407,9 @@
         try
         {
             _isStreaming = false;
-            Snackbar.Add("Results complete", Severity.Success);
+            _isLoading = false;
+            var count = _searchResponse?.Results?.Count ?? 0;
+            Snackbar.Add($"Streaming complete: {count} results", Severity.Success);
             StateHasChanged();
         }
         catch {}
@@ -397,6 +419,13 @@
     public void OnSseError(string message)
     {
         _isStreaming = false;
+        _isLoading = false;
         Snackbar.Add("Streaming error. Falling back to standard mode.", Severity.Error);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _sseRef?.Dispose();
     }
 }
