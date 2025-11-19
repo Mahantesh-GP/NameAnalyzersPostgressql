@@ -65,6 +65,11 @@
             }
         </MudStack>
 
+        <!-- Debug Info -->
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+            ShowCategoryView = @ShowCategoryView
+        </MudAlert>
+
         <!-- Results List -->
         @if (Response.Results.Any())
         {

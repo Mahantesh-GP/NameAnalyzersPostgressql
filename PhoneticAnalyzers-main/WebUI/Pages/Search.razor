@@ -28,7 +28,7 @@
 
 <MudStack Spacing="2" Class="mb-2">
     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-        <MudSwitch T="bool" @bind-Checked="_streamEnabled" Color="Color.Primary" />
+        <MudSwitch T="bool" @bind-Value="_streamEnabled" Color="Color.Primary" />
         <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
             <MudText Typo="Typo.body2">Stream results (exact & nicknames first)</MudText>
             <MudTooltip Text="ON: High-confidence results appear immediately, followed by lower-confidence matches in batches. OFF: All results load together after search completes.">
@@ -44,7 +44,7 @@
     </MudStack>
     
     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-        <MudSwitch T="bool" Checked="_categoryView" CheckedChanged="OnCategoryViewChanged" Color="Color.Primary" />
+        <MudSwitch T="bool" Value="_categoryView" ValueChanged="OnCategoryViewChanged" Color="Color.Primary" />
         <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
             <MudText Typo="Typo.body2">Group by match type</MudText>
             <MudTooltip Text="ON: Shows top 5 Exact, Nickname, Fuzzy, and Phonetic matches in separate sections. OFF: Shows high-confidence matches first, then lower-confidence matches.">
