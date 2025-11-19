@@ -68,333 +68,17 @@
         <!-- Results List -->
         @if (Response.Results.Any())
         {
-            var strongMatches = Response.Results.Where(IsStrongMatch).ToList();
-            var additionalMatches = Response.Results.Where(r => !IsStrongMatch(r)).ToList();
-
-            <!-- Strong Matches Section (Always Visible) -->
-            @if (strongMatches.Any())
+            @if (ShowCategoryView)
             {
-                <MudAlert Severity="Severity.Success" Dense="true" Class="mt-4">
-                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                        <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" />
-                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
-                            High-Confidence Matches (@strongMatches.Count)
-                        </MudText>
-                    </MudStack>
-                    <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        Exact matches, nicknames, and close fuzzy matches (score &gt;=72%)
-                    </MudText>
-                </MudAlert>
-
-                <MudStack Spacing="3" Class="mt-3">
-                    @for (int i = 0; i < strongMatches.Count; i++)
-                    {
-                        var result = strongMatches[i];
-                        var resultNumber = i + 1;
-                    <MudPaper Elevation="3" Class="pa-0 hover-lift" Style="@($"border-left: 5px solid {GetScoreBorderColor(result.SimilarityScore)}; overflow: hidden; border-radius: 12px; transition: all 0.3s ease;")">
-                        <MudGrid Spacing="0" Class="pa-4">
-                            <!-- Header Row with Score Badge -->
-                            <MudItem xs="12" Class="d-flex justify-space-between align-center mb-3">
-                                <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
-                                    <MudAvatar Color="GetScoreAvatarColor(result.SimilarityScore)" Size="Size.Small" Style="font-weight: bold; font-size: 1rem;">
-                                        @resultNumber
-                                    </MudAvatar>
-                                    <MudText Typo="Typo.h6" Style="font-weight: 600;">
-                                        @result.FullName
-                                    </MudText>
-                                </MudStack>
-                                <MudChip T="string" 
-                                         Size="Size.Medium" 
-                                         Color="GetScoreColor(result.SimilarityScore)" 
-                                         Variant="Variant.Filled"
-                                         Style="font-weight: 600; font-size: 1rem;">
-                                    @result.SimilarityScore.ToString("P0")
-                                </MudChip>
-                            </MudItem>
-
-                            <!-- Match Type Badge and Normalized Name -->
-                            <MudItem xs="12" Class="mb-3">
-                                <MudStack Row Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
-                                    @if (!string.IsNullOrEmpty(result.MatchType))
-                                    {
-                                        <MudChip T="string" 
-                                                 Size="Size.Small" 
-                                                 Color="GetMatchBadgeColor(result)" 
-                                                 Icon="@GetMatchTypeIcon(result.MatchType)"
-                                                 Variant="Variant.Filled">
-                                            @GetMatchTypeLabel(result)
-                                        </MudChip>
-                                    }
-                                    @if (!string.IsNullOrEmpty(result.NormalizedName) && result.NormalizedName != result.FullName.ToUpperInvariant())
-                                    {
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                            → @result.NormalizedName
-                                        </MudText>
-                                    }
-                                </MudStack>
-                            </MudItem>
-
-                            <!-- Details Grid -->
-                            <MudItem xs="12">
-                                <MudGrid Spacing="3">
-                                    <!-- County -->
-                                    <MudItem xs="12" sm="6" md="4">
-                                        <MudPaper Elevation="0" Class="pa-3" Style="background-color: rgba(100, 116, 139, 0.1); border-radius: 8px; border: 1px solid rgba(100, 116, 139, 0.2);">
-                                            <MudStack Spacing="1">
-                                                <MudStack Row Spacing="1" AlignItems="AlignItems.Center">
-                                                    <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" Color="Color.Secondary" />
-                                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight: 600; letter-spacing: 0.5px;">COUNTY</MudText>
-                                                </MudStack>
-                                                <MudText Typo="Typo.body1" Style="font-weight: 600;">
-                                                    @result.CountyName
-                                                </MudText>
-                                            </MudStack>
-                                        </MudPaper>
-                                    </MudItem>
-
-                                    <!-- Type -->
-                                    <MudItem xs="12" sm="6" md="4">
-                                        <MudPaper Elevation="0" Class="pa-3" Style="background-color: rgba(100, 116, 139, 0.1); border-radius: 8px; border: 1px solid rgba(100, 116, 139, 0.2);">
-                                            <MudStack Spacing="1">
-                                                <MudStack Row Spacing="1" AlignItems="AlignItems.Center">
-                                                    <MudIcon Icon="@Icons.Material.Filled.Category" Size="Size.Small" Color="Color.Secondary" />
-                                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight: 600; letter-spacing: 0.5px;">TYPE</MudText>
-                                                </MudStack>
-                                                <MudText Typo="Typo.body1" Style="font-weight: 600;">
-                                                    @GetFlagName(result.Flag)
-                                                </MudText>
-                                            </MudStack>
-                                        </MudPaper>
-                                    </MudItem>
-
-                                    <!-- Why This Matched -->
-                                    @if (result.MatchMetadata.HasValue)
-                                    {
-                                        <MudItem xs="12" sm="6" md="4">
-                                            <MudPaper Elevation="0" Class="pa-3" Style="background: linear-gradient(135deg, rgba(14, 165, 233, 0.12) 0%, rgba(56, 189, 248, 0.08) 100%); border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.3);">
-                                                <MudStack Spacing="1">
-                                                    <MudStack Row Spacing="1" AlignItems="AlignItems.Center">
-                                                        <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Info" />
-                                                        <MudText Typo="Typo.caption" Color="Color.Info" Style="font-weight: 600; letter-spacing: 0.5px;">WHY THIS MATCHED</MudText>
-                                                    </MudStack>
-                                                    <MudText Typo="Typo.body2" Style="font-weight: 500; line-height: 1.5;">
-                                                        @GetMatchExplanation(result)
-                                                    </MudText>
-                                                </MudStack>
-                                            </MudPaper>
-                                        </MudItem>
-                                    }
-                                </MudGrid>
-                            </MudItem>
-
-                            <!-- Phonetic Codes - Expandable -->
-                            @if (result.PhoneticCodes != null && result.PhoneticCodes.BeiderMorse?.Any() == true)
-                            {
-                                <MudItem xs="12" Class="mt-2">
-                                    <MudExpansionPanels Dense="true" Elevation="0">
-                                        <MudExpansionPanel Text="Phonetic Codes" Dense="true" Style="background-color: transparent;">
-                                            <MudStack Row Spacing="1" Wrap="Wrap.Wrap">
-                                                @foreach (var phoneticCode in result.PhoneticCodes.BeiderMorse)
-                                                {
-                                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Style="font-family: monospace;">
-                                                        @phoneticCode
-                                                    </MudChip>
-                                                }
-                                            </MudStack>
-                                        </MudExpansionPanel>
-                                    </MudExpansionPanels>
-                                </MudItem>
-                            }
-                        </MudGrid>
-                    </MudPaper>
-                    }
-                </MudStack>
+                @* Category-based view: Exact / Nickname / Fuzzy / Phonetic sections *@
+                @RenderCategoryView()
             }
-
-            <!-- Additional Possible Matches Section (Collapsible) -->
-            @if (additionalMatches.Any())
+            else
             {
-                var autoExpand = strongMatches.Count < 5; // also covers zero-strong case
-                <MudExpansionPanels Class="mt-4" Elevation="2">
-                    <MudExpansionPanel Expanded="@autoExpand">
-                        <TitleContent>
-                            <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                                <MudIcon Icon="@Icons.Material.Filled.FilterList" Color="Color.Info" />
-                                <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
-                                    Lower-Confidence Matches (@additionalMatches.Count)
-                                </MudText>
-                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
-                                    Score &lt;72%
-                                </MudChip>
-                            </MudStack>
-                        </TitleContent>
-                        <ChildContent>
-                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
-                                Partial matches, phonetic variations, and fuzzy matches with lower similarity scores
-                            </MudText>
-                            <MudStack Spacing="3">
-                                @for (int i = 0; i < additionalMatches.Count; i++)
-                                {
-                                    var result = additionalMatches[i];
-                                    var resultNumber = strongMatches.Count + i + 1;
-                                    <MudPaper Elevation="3" Class="pa-0 hover-lift" Style="@($"border-left: 5px solid {GetScoreBorderColor(result.SimilarityScore)}; overflow: hidden; border-radius: 12px; transition: all 0.3s ease;")">
-                                        <MudGrid Spacing="0" Class="pa-4">
-                                            <!-- Header Row with Score Badge -->
-                                            <MudItem xs="12" Class="d-flex justify-space-between align-center mb-3">
-                                                <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
-                                                    <MudAvatar Color="GetScoreAvatarColor(result.SimilarityScore)" Size="Size.Small" Style="font-weight: bold; font-size: 1rem;">
-                                                        @resultNumber
-                                                    </MudAvatar>
-                                                    <MudText Typo="Typo.h6" Style="font-weight: 600;">
-                                                        @result.FullName
-                                                    </MudText>
-                                                </MudStack>
-                                                <MudChip T="string" 
-                                                         Size="Size.Medium" 
-                                                         Color="GetScoreColor(result.SimilarityScore)" 
-                                                         Variant="Variant.Filled"
-                                                         Style="font-weight: 600; font-size: 1rem;">
-                                                    @result.SimilarityScore.ToString("P0")
-                                                </MudChip>
-                                            </MudItem>
-
-                                            <!-- Match Type Badge and Normalized Name -->
-                                            <MudItem xs="12" Class="mb-3">
-                                                <MudStack Row Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
-                                                    @if (!string.IsNullOrEmpty(result.MatchType))
-                                                    {
-                                                        <MudChip T="string" 
-                                                                 Size="Size.Small" 
-                                                                 Color="GetMatchBadgeColor(result)" 
-                                                                 Icon="@GetMatchTypeIcon(result.MatchType)"
-                                                                 Variant="Variant.Filled">
-                                                            @GetMatchTypeLabel(result)
-                                                        </MudChip>
-                                                    }
-                                                    @if (!string.IsNullOrEmpty(result.NormalizedName) && result.NormalizedName != result.FullName.ToUpperInvariant())
-                                                    {
-                                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                                            → @result.NormalizedName
-                                                        </MudText>
-                                                    }
-                                                </MudStack>
-                                            </MudItem>
-
-                                            <!-- Details Grid -->
-                                            <MudItem xs="12">
-                                                <MudGrid Spacing="3">
-                                                    <!-- County -->
-                                                    <MudItem xs="12" sm="6" md="4">
-                                                        <MudPaper Elevation="0" Class="pa-3" Style="background-color: rgba(100, 116, 139, 0.1); border-radius: 8px; border: 1px solid rgba(100, 116, 139, 0.2);">
-                                                            <MudStack Spacing="1">
-                                                                <MudStack Row Spacing="1" AlignItems="AlignItems.Center">
-                                                                    <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" Color="Color.Secondary" />
-                                                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight: 600; letter-spacing: 0.5px;">COUNTY</MudText>
-                                                                </MudStack>
-                                                                <MudText Typo="Typo.body1" Style="font-weight: 600;">
-                                                                    @result.CountyName
-                                                                </MudText>
-                                                            </MudStack>
-                                                        </MudPaper>
-                                                    </MudItem>
-
-                                                    <!-- Type -->
-                                                    <MudItem xs="12" sm="6" md="4">
-                                                        <MudPaper Elevation="0" Class="pa-3" Style="background-color: rgba(100, 116, 139, 0.1); border-radius: 8px; border: 1px solid rgba(100, 116, 139, 0.2);">
-                                                            <MudStack Spacing="1">
-                                                                <MudStack Row Spacing="1" AlignItems="AlignItems.Center">
-                                                                    <MudIcon Icon="@Icons.Material.Filled.Category" Size="Size.Small" Color="Color.Secondary" />
-                                                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight: 600; letter-spacing: 0.5px;">TYPE</MudText>
-                                                                </MudStack>
-                                                                <MudText Typo="Typo.body1" Style="font-weight: 600;">
-                                                                    @GetFlagName(result.Flag)
-                                                                </MudText>
-                                                            </MudStack>
-                                                        </MudPaper>
-                                                    </MudItem>
-
-                                                    <!-- Why This Matched -->
-                                                    @if (result.MatchMetadata.HasValue)
-                                                    {
-                                                        <MudItem xs="12" sm="6" md="4">
-                                                            <MudPaper Elevation="0" Class="pa-3" Style="background: linear-gradient(135deg, rgba(14, 165, 233, 0.12) 0%, rgba(56, 189, 248, 0.08) 100%); border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.3);">
-                                                                <MudStack Spacing="1">
-                                                                    <MudStack Row Spacing="1" AlignItems="AlignItems.Center">
-                                                                        <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Info" />
-                                                                        <MudText Typo="Typo.caption" Color="Color.Info" Style="font-weight: 600; letter-spacing: 0.5px;">WHY THIS MATCHED</MudText>
-                                                                    </MudStack>
-                                                                    <MudText Typo="Typo.body2" Style="font-weight: 500; line-height: 1.5;">
-                                                                        @GetMatchExplanation(result)
-                                                                    </MudText>
-                                                                </MudStack>
-                                                            </MudPaper>
-                                                        </MudItem>
-                                                    }
-                                                </MudGrid>
-                                            </MudItem>
-
-                                            <!-- Phonetic Codes - Expandable -->
-                                            @if (result.PhoneticCodes != null && result.PhoneticCodes.BeiderMorse?.Any() == true)
-                                            {
-                                                <MudItem xs="12" Class="mt-2">
-                                                    <MudExpansionPanels Dense="true" Elevation="0">
-                                                        <MudExpansionPanel Text="Phonetic Codes" Dense="true" Style="background-color: transparent;">
-                                                            <MudStack Row Spacing="1" Wrap="Wrap.Wrap">
-                                                                @foreach (var phoneticCode in result.PhoneticCodes.BeiderMorse)
-                                                                {
-                                                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Style="font-family: monospace;">
-                                                                        @phoneticCode
-                                                                    </MudChip>
-                                                                }
-                                                            </MudStack>
-                                                        </MudExpansionPanel>
-                                                    </MudExpansionPanels>
-                                                </MudItem>
-                                            }
-                                        </MudGrid>
-                                    </MudPaper>
-                                }
-                            </MudStack>
-                        </ChildContent>
-                    </MudExpansionPanel>
-                </MudExpansionPanels>
-            }
-
-            <!-- Phonetic Codes Panel -->
-            @if (Response.PhoneticCodes != null)
-            {
-                <MudExpansionPanels Class="mt-4">
-                    <MudExpansionPanel Text="Phonetic Analysis Details">
-                        <MudGrid>
-                            @if (Response.PhoneticCodes.BeiderMorse?.Any() == true)
-                            {
-                                <MudItem xs="12" md="6">
-                                    <MudAlert Severity="Severity.Success" Dense="true">
-                                        <MudText Typo="Typo.subtitle2">Beider-Morse Codes</MudText>
-                                        <MudText Typo="Typo.body2">
-                                            @string.Join(", ", Response.PhoneticCodes.BeiderMorse)
-                                        </MudText>
-                                    </MudAlert>
-                                </MudItem>
-                            }
-
-                            @if (Response.PhoneticCodes.NicknameVariations?.Any() == true)
-                            {
-                                <MudItem xs="12">
-                                    <MudAlert Severity="Severity.Warning" Dense="true">
-                                        <MudText Typo="Typo.subtitle2">Nickname Variations</MudText>
-                                        <MudStack Row Spacing="1" Wrap="Wrap.Wrap">
-                                            @foreach (var nickname in Response.PhoneticCodes.NicknameVariations)
-                                            {
-                                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">@nickname</MudChip>
-                                            }
-                                        </MudStack>
-                                    </MudAlert>
-                                </MudItem>
-                            }
-                        </MudGrid>
-                    </MudExpansionPanel>
-                </MudExpansionPanels>
+                @* Default unified view: Strong / Additional matches *@
+                var strongMatches = Response.Results.Where(IsStrongMatch).ToList();
+                var additionalMatches = Response.Results.Where(r => !IsStrongMatch(r)).ToList();
+                @RenderUnifiedView(strongMatches, additionalMatches)
             }
         }
         else
@@ -409,6 +93,326 @@
 @code {
     [Parameter] public AdvancedSearchResponse? Response { get; set; }
     [Parameter] public bool IsStreaming { get; set; }
+    [Parameter] public bool ShowCategoryView { get; set; } = false;
+
+    private RenderFragment RenderCategoryView() => __builder =>
+    {
+        var exactMatches = Response!.Results.Where(r => r.MatchType == "Exact" || r.MatchType == "TokenContains").OrderByDescending(r => r.SimilarityScore).ToList();
+        var nicknameMatches = Response.Results.Where(r => r.MatchType == "NicknameExpansion").OrderByDescending(r => r.SimilarityScore).ToList();
+        var phoneticMatches = Response.Results.Where(r => r.MatchType is "PrimaryDoubleMetaphone" or "AlternateDoubleMetaphone" or "BeiderMorse" or "DoubleMetaphone" or "Metaphone" or "Soundex").OrderByDescending(r => r.SimilarityScore).ToList();
+        var fuzzyMatches = Response.Results.Where(r => r.MatchType != null && !exactMatches.Contains(r) && !nicknameMatches.Contains(r) && !phoneticMatches.Contains(r)).OrderByDescending(r => r.SimilarityScore).ToList();
+
+        @if (exactMatches.Any())
+        {
+            <text>@RenderCategorySection("Exact Matches", exactMatches, Icons.Material.Filled.CheckCircle, Color.Success, "Perfect name matches")</text>
+        }
+
+        @if (nicknameMatches.Any())
+        {
+            <text>@RenderCategorySection("Nickname Matches", nicknameMatches, Icons.Material.Filled.People, Color.Secondary, "Common nickname variations")</text>
+        }
+
+        @if (fuzzyMatches.Any())
+        {
+            <text>@RenderCategorySection("Fuzzy Matches", fuzzyMatches, Icons.Material.Filled.Grain, Color.Warning, "Close spelling variations and typos")</text>
+        }
+
+        @if (phoneticMatches.Any())
+        {
+            <text>@RenderCategorySection("Phonetic Matches", phoneticMatches, Icons.Material.Filled.GraphicEq, Color.Info, "Sound-alike names")</text>
+        }
+    };
+
+    private Dictionary<string, bool> _categoryExpanded = new();
+
+    private RenderFragment RenderCategorySection(string title, List<SearchResult> allMatches, string icon, Color color, string description) => __builder =>
+    {
+        var categoryKey = title.Replace(" ", "");
+        if (!_categoryExpanded.ContainsKey(categoryKey))
+            _categoryExpanded[categoryKey] = false;
+
+        var topMatches = allMatches.Take(5).ToList();
+        var remainingMatches = allMatches.Skip(5).ToList();
+        var expanded = _categoryExpanded[categoryKey];
+
+        <MudPaper Class="mt-4" Elevation="2">
+            <MudStack Class="pa-4" Spacing="3">
+                <MudAlert Severity="GetCategorySeverity(color)" Dense="true">
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                        <MudIcon Icon="@icon" />
+                        <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
+                            @title (@allMatches.Count)
+                        </MudText>
+                    </MudStack>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        @description
+                    </MudText>
+                </MudAlert>
+
+                @* Top 5 results *@
+                <MudStack Spacing="3">
+                    @for (int i = 0; i < topMatches.Count; i++)
+                    {
+                        var result = topMatches[i];
+                        var resultNumber = i + 1;
+                        <text>@RenderResultCard(result, resultNumber)</text>
+                    }
+                </MudStack>
+
+                @* Show More button *@
+                @if (remainingMatches.Any())
+                {
+                    <MudButton Variant="Variant.Outlined" 
+                               Color="@color" 
+                               FullWidth="true"
+                               StartIcon="@(expanded ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                               OnClick="@(() => _categoryExpanded[categoryKey] = !expanded)">
+                        @(expanded ? "Show Less" : $"Show {remainingMatches.Count} More")
+                    </MudButton>
+
+                    @if (expanded)
+                    {
+                        <MudStack Spacing="3" Class="mt-2">
+                            @for (int i = 0; i < remainingMatches.Count; i++)
+                            {
+                                var result = remainingMatches[i];
+                                var resultNumber = topMatches.Count + i + 1;
+                                <text>@RenderResultCard(result, resultNumber)</text>
+                            }
+                        </MudStack>
+                    }
+                }
+            </MudStack>
+        </MudPaper>
+    };
+
+    private Severity GetCategorySeverity(Color color) => color switch
+    {
+        Color.Success => Severity.Success,
+        Color.Info => Severity.Info,
+        Color.Warning => Severity.Warning,
+        Color.Error => Severity.Error,
+        _ => Severity.Normal
+    };
+
+    private RenderFragment RenderUnifiedView(List<SearchResult> strongMatches, List<SearchResult> additionalMatches) => __builder =>
+    {
+        @* Strong Matches Section (Always Visible) *@
+        @if (strongMatches.Any())
+        {
+            <MudAlert Severity="Severity.Success" Dense="true" Class="mt-4">
+                <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" />
+                    <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
+                        High-Confidence Matches (@strongMatches.Count)
+                    </MudText>
+                </MudStack>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Exact matches, nicknames, and close fuzzy matches (score &gt;=72%)
+                </MudText>
+            </MudAlert>
+
+            <MudStack Spacing="3" Class="mt-3">
+                @for (int i = 0; i < strongMatches.Count; i++)
+                {
+                    var result = strongMatches[i];
+                    var resultNumber = i + 1;
+                    <text>@RenderResultCard(result, resultNumber)</text>
+                }
+            </MudStack>
+        }
+
+        @* Additional Possible Matches Section (Collapsible) *@
+        @if (additionalMatches.Any())
+        {
+            var autoExpand = strongMatches.Count < 5; // also covers zero-strong case
+            <MudExpansionPanels Class="mt-4" Elevation="2">
+                <MudExpansionPanel Expanded="@autoExpand">
+                    <TitleContent>
+                        <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                            <MudIcon Icon="@Icons.Material.Filled.FilterList" Color="Color.Info" />
+                            <MudText Typo="Typo.subtitle1" Style="font-weight: 600;">
+                                Lower-Confidence Matches (@additionalMatches.Count)
+                            </MudText>
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                Score &lt;72%
+                            </MudChip>
+                        </MudStack>
+                    </TitleContent>
+                    <ChildContent>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                            Partial matches, phonetic variations, and fuzzy matches with lower similarity scores
+                        </MudText>
+                        <MudStack Spacing="3">
+                            @for (int i = 0; i < additionalMatches.Count; i++)
+                            {
+                                var result = additionalMatches[i];
+                                var resultNumber = strongMatches.Count + i + 1;
+                                <text>@RenderResultCard(result, resultNumber)</text>
+                            }
+                        </MudStack>
+                    </ChildContent>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+        }
+
+        @* Phonetic Codes Panel *@
+        @if (Response.PhoneticCodes != null)
+        {
+            <MudExpansionPanels Class="mt-4">
+                <MudExpansionPanel Text="Phonetic Analysis Details">
+                    <MudGrid>
+                        @if (Response.PhoneticCodes.BeiderMorse?.Any() == true)
+                        {
+                            <MudItem xs="12" md="6">
+                                <MudAlert Severity="Severity.Success" Dense="true">
+                                    <MudText Typo="Typo.subtitle2">Beider-Morse Codes</MudText>
+                                    <MudText Typo="Typo.body2">
+                                        @string.Join(", ", Response.PhoneticCodes.BeiderMorse)
+                                    </MudText>
+                                </MudAlert>
+                            </MudItem>
+                        }
+
+                        @if (Response.PhoneticCodes.NicknameVariations?.Any() == true)
+                        {
+                            <MudItem xs="12">
+                                <MudAlert Severity="Severity.Warning" Dense="true">
+                                    <MudText Typo="Typo.subtitle2">Nickname Variations</MudText>
+                                    <MudStack Row Spacing="1" Wrap="Wrap.Wrap">
+                                        @foreach (var nickname in Response.PhoneticCodes.NicknameVariations)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">@nickname</MudChip>
+                                        }
+                                    </MudStack>
+                                </MudAlert>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudExpansionPanel>
+            </MudExpansionPanels>
+        }
+    };
+
+    private RenderFragment RenderResultCard(SearchResult result, int resultNumber) => __builder =>
+    {
+        <MudPaper Elevation="3" Class="pa-0 hover-lift" Style="@($"border-left: 5px solid {GetScoreBorderColor(result.SimilarityScore)}; overflow: hidden; border-radius: 12px; transition: all 0.3s ease;")">
+            <MudGrid Spacing="0" Class="pa-4">
+                @* Header Row with Score Badge *@
+                <MudItem xs="12" Class="d-flex justify-space-between align-center mb-3">
+                    <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
+                        <MudAvatar Color="GetScoreAvatarColor(result.SimilarityScore)" Size="Size.Small" Style="font-weight: bold; font-size: 1rem;">
+                            @resultNumber
+                        </MudAvatar>
+                        <MudText Typo="Typo.h6" Style="font-weight: 600;">
+                            @result.FullName
+                        </MudText>
+                    </MudStack>
+                    <MudChip T="string" 
+                             Size="Size.Medium" 
+                             Color="GetScoreColor(result.SimilarityScore)" 
+                             Variant="Variant.Filled"
+                             Style="font-weight: 600; font-size: 1rem;">
+                        @result.SimilarityScore.ToString("P0")
+                    </MudChip>
+                </MudItem>
+
+                @* Match Type Badge and Normalized Name *@
+                <MudItem xs="12" Class="mb-3">
+                    <MudStack Row Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                        @if (!string.IsNullOrEmpty(result.MatchType))
+                        {
+                            <MudChip T="string" 
+                                     Size="Size.Small" 
+                                     Color="GetMatchBadgeColor(result)" 
+                                     Icon="@GetMatchTypeIcon(result.MatchType)"
+                                     Variant="Variant.Filled">
+                                @GetMatchTypeLabel(result)
+                            </MudChip>
+                        }
+                        @if (!string.IsNullOrEmpty(result.NormalizedName) && result.NormalizedName != result.FullName.ToUpperInvariant())
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                → @result.NormalizedName
+                            </MudText>
+                        }
+                    </MudStack>
+                </MudItem>
+
+                @* Details Grid *@
+                <MudItem xs="12">
+                    <MudGrid Spacing="3">
+                        @* County *@
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudPaper Elevation="0" Class="pa-3" Style="background-color: rgba(100, 116, 139, 0.1); border-radius: 8px; border: 1px solid rgba(100, 116, 139, 0.2);">
+                                <MudStack Spacing="1">
+                                    <MudStack Row Spacing="1" AlignItems="AlignItems.Center">
+                                        <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" Color="Color.Secondary" />
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight: 600; letter-spacing: 0.5px;">COUNTY</MudText>
+                                    </MudStack>
+                                    <MudText Typo="Typo.body1" Style="font-weight: 600;">
+                                        @result.CountyName
+                                    </MudText>
+                                </MudStack>
+                            </MudPaper>
+                        </MudItem>
+
+                        @* Type *@
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudPaper Elevation="0" Class="pa-3" Style="background-color: rgba(100, 116, 139, 0.1); border-radius: 8px; border: 1px solid rgba(100, 116, 139, 0.2);">
+                                <MudStack Spacing="1">
+                                    <MudStack Row Spacing="1" AlignItems="AlignItems.Center">
+                                        <MudIcon Icon="@Icons.Material.Filled.Category" Size="Size.Small" Color="Color.Secondary" />
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-weight: 600; letter-spacing: 0.5px;">TYPE</MudText>
+                                    </MudStack>
+                                    <MudText Typo="Typo.body1" Style="font-weight: 600;">
+                                        @GetFlagName(result.Flag)
+                                    </MudText>
+                                </MudStack>
+                            </MudPaper>
+                        </MudItem>
+
+                        @* Why This Matched *@
+                        @if (result.MatchMetadata.HasValue)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudPaper Elevation="0" Class="pa-3" Style="background: linear-gradient(135deg, rgba(14, 165, 233, 0.12) 0%, rgba(56, 189, 248, 0.08) 100%); border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.3);">
+                                    <MudStack Spacing="1">
+                                        <MudStack Row Spacing="1" AlignItems="AlignItems.Center">
+                                            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Info" />
+                                            <MudText Typo="Typo.caption" Color="Color.Info" Style="font-weight: 600; letter-spacing: 0.5px;">WHY THIS MATCHED</MudText>
+                                        </MudStack>
+                                        <MudText Typo="Typo.body2" Style="font-weight: 500; line-height: 1.5;">
+                                            @GetMatchExplanation(result)
+                                        </MudText>
+                                    </MudStack>
+                                </MudPaper>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudItem>
+
+                @* Phonetic Codes - Expandable *@
+                @if (result.PhoneticCodes != null && result.PhoneticCodes.BeiderMorse?.Any() == true)
+                {
+                    <MudItem xs="12" Class="mt-2">
+                        <MudExpansionPanels Dense="true" Elevation="0">
+                            <MudExpansionPanel Text="Phonetic Codes" Dense="true" Style="background-color: transparent;">
+                                <MudStack Row Spacing="1" Wrap="Wrap.Wrap">
+                                    @foreach (var phoneticCode in result.PhoneticCodes.BeiderMorse)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text" Style="font-family: monospace;">
+                                            @phoneticCode
+                                        </MudChip>
+                                    }
+                                </MudStack>
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudPaper>
+    };
 
     private (int Exact, int Nickname, int Fuzzy, int Phonetic) GetLiveCounts(IEnumerable<SearchResult> results)
     {

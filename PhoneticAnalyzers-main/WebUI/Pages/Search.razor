@@ -26,20 +26,32 @@
             OnSubmit="PerformSearch"
             OnClear="ClearSearch" />
 
-<MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
-    <MudSwitch T="bool" @bind-Checked="_streamEnabled" Color="Color.Primary" />
-    <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
-        <MudText Typo="Typo.body2">Stream results (exact & nicknames first)</MudText>
-        <MudTooltip Text="ON: High-confidence results appear immediately, followed by lower-confidence matches in batches. OFF: All results load together after search completes.">
-            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Secondary" />
-        </MudTooltip>
+<MudStack Spacing="2" Class="mb-2">
+    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+        <MudSwitch T="bool" @bind-Checked="_streamEnabled" Color="Color.Primary" />
+        <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+            <MudText Typo="Typo.body2">Stream results (exact & nicknames first)</MudText>
+            <MudTooltip Text="ON: High-confidence results appear immediately, followed by lower-confidence matches in batches. OFF: All results load together after search completes.">
+                <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Secondary" />
+            </MudTooltip>
+        </MudStack>
+        @if (_isStreaming)
+        {
+            <MudChip T="string" Size="Size.Small" Color="Color.Info" Icon="@Icons.Material.Filled.Stream" Variant="Variant.Filled">
+                <MudText Typo="Typo.caption" Style="font-weight: 600;">Streaming results...</MudText>
+            </MudChip>
+        }
     </MudStack>
-    @if (_isStreaming)
-    {
-        <MudChip T="string" Size="Size.Small" Color="Color.Info" Icon="@Icons.Material.Filled.Stream" Variant="Variant.Filled">
-            <MudText Typo="Typo.caption" Style="font-weight: 600;">Streaming results...</MudText>
-        </MudChip>
-    }
+    
+    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+        <MudSwitch T="bool" @bind-Checked="_categoryView" Color="Color.Primary" />
+        <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+            <MudText Typo="Typo.body2">Group by match type</MudText>
+            <MudTooltip Text="ON: Shows top 5 Exact, Nickname, Fuzzy, and Phonetic matches in separate sections. OFF: Shows high-confidence matches first, then lower-confidence matches.">
+                <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Secondary" />
+            </MudTooltip>
+        </MudStack>
+    </MudStack>
 </MudStack>
 
 @if (_isStreaming && (_searchResponse == null || !_searchResponse.Results.Any()))
@@ -55,7 +67,7 @@
     </MudPaper>
 }
 
-<SearchResults Response="_searchResponse" IsStreaming="_isStreaming" />
+<SearchResults Response="_searchResponse" IsStreaming="_isStreaming" ShowCategoryView="_categoryView" />
 
 <MudDialog @bind-Visible="_showHelpDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
     <TitleContent>
@@ -241,6 +253,7 @@
     private bool _isLoading;
     private bool _showHelpDialog;
     private bool _streamEnabled = true;
+    private bool _categoryView = false;
     private bool _isStreaming;
     private DotNetObjectReference<Search>? _sseRef;
     private string _sseId = Guid.NewGuid().ToString();
