@@ -44,7 +44,7 @@
     </MudStack>
     
     <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-        <MudSwitch T="bool" @bind-Checked="_categoryView" Color="Color.Primary" />
+        <MudSwitch T="bool" Checked="_categoryView" CheckedChanged="OnCategoryViewChanged" Color="Color.Primary" />
         <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
             <MudText Typo="Typo.body2">Group by match type</MudText>
             <MudTooltip Text="ON: Shows top 5 Exact, Nickname, Fuzzy, and Phonetic matches in separate sections. OFF: Shows high-confidence matches first, then lower-confidence matches.">
@@ -440,6 +440,12 @@
         _isLoading = false;
         Snackbar.Add("Streaming error. Falling back to standard mode.", Severity.Error);
         StateHasChanged();
+    }
+
+    private void OnCategoryViewChanged(bool value)
+    {
+        _categoryView = value;
+        StateHasChanged(); // Force re-render when toggle changes
     }
 
     public void Dispose()
