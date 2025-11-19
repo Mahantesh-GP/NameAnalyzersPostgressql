@@ -120,13 +120,17 @@ exact_matches AS (
   WHERE include_nicknames = TRUE
     AND NOT EXISTS (SELECT 1 FROM early_exact)
 ), nickname_matches AS (
-  -- Score nickname matches based on coverage (like fuzzy), not flat 98%
+  -- Score nickname matches based on coverage, weighted by query complexity
   SELECT 
     nmr.person_id,
     pr.full_name,
     'NicknameExpansion'::text AS match_type,
     LEAST(
-      0.75 + 0.23 * (SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)),
+      -- For single-token queries (like "bob"), give full credit; for multi-token, scale by coverage
+      CASE 
+        WHEN (SELECT COUNT(*) FROM qtokens_weighted) = 1 THEN 0.98
+        ELSE 0.70 + 0.28 * (SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0))
+      END,
       0.98
     ) AS similarity_score,
     'NicknameExpansion'::text AS matched_field,
@@ -144,8 +148,10 @@ exact_matches AS (
   JOIN person pr ON pr.person_id = nmr.person_id AND pr.flag <> 'B'  -- Exclude businesses
   WHERE include_nicknames = TRUE
   GROUP BY nmr.person_id, pr.full_name, pr.county, pr.flag
-  -- Only keep nickname matches where at least 50% of query tokens matched
-  HAVING (SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)) >= 0.5
+  -- For multi-token queries, require meaningful coverage (at least 40% matched)
+  -- For single-token queries, allow all matches
+  HAVING (SELECT COUNT(*) FROM qtokens_weighted) = 1 
+      OR (SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)) >= 0.4
 ), token_matches AS (
   -- PHASE 2 OPTIMIZATION: Collect token matches with LIMIT to cap expensive fuzzy matching
   SELECT 
