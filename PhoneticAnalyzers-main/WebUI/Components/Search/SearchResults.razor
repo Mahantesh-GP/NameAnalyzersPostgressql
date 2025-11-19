@@ -50,7 +50,7 @@
                         </MudText>
                     </MudStack>
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
-                        High-confidence results: Exact matches, nicknames, and close fuzzy matches (&gt;=75%)
+                        High-confidence results: Exact matches, nicknames, and close fuzzy matches (&gt;=72%)
                     </MudText>
                 </MudAlert>
 
@@ -182,8 +182,9 @@
             <!-- Additional Possible Matches Section (Collapsible) -->
             @if (additionalMatches.Any())
             {
+                var autoExpand = strongMatches.Count < 5;
                 <MudExpansionPanels Class="mt-4" Elevation="2">
-                    <MudExpansionPanel>
+                    <MudExpansionPanel Expanded="@autoExpand">
                         <TitleContent>
                             <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
                                 <MudIcon Icon="@Icons.Material.Filled.FilterList" Color="Color.Info" />
@@ -197,7 +198,7 @@
                         </TitleContent>
                         <ChildContent>
                             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
-                                These results have lower similarity scores (&lt;75%) but may still be relevant. Includes partial matches and phonetic variations.
+                                These results have lower similarity scores (&lt;72%) but may still be relevant. Includes partial matches and phonetic variations.
                             </MudText>
                             <MudStack Spacing="3">
                                 @for (int i = 0; i < additionalMatches.Count; i++)
@@ -635,8 +636,8 @@
                 return true;
         }
 
-        // Score-based threshold: ≥75% is strong
-        return result.SimilarityScore >= 0.75;
+        // Score-based threshold: ≥72% is strong
+        return result.SimilarityScore >= 0.72;
     }
 }
 
