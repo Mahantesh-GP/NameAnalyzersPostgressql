@@ -28,7 +28,12 @@
 
 <MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
     <MudSwitch T="bool" @bind-Checked="_streamEnabled" Color="Color.Primary" />
-    <MudText Typo="Typo.body2">Stream results (exact & nicknames first)</MudText>
+    <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+        <MudText Typo="Typo.body2">Stream results (exact & nicknames first)</MudText>
+        <MudTooltip Text="ON: High-confidence results appear immediately, followed by lower-confidence matches in batches. OFF: All results load together after search completes.">
+            <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Secondary" />
+        </MudTooltip>
+    </MudStack>
     @if (_isStreaming)
     {
         <MudChip T="string" Size="Size.Small" Color="Color.Info" Icon="@Icons.Material.Filled.Stream" Variant="Variant.Filled">

@@ -202,14 +202,17 @@ public class SearchController : ControllerBase
                 return r.SimilarityScore >= strongMin;
             }
 
-            var strong = result.Results.Where(IsStrong).Take(maxResults).ToList();
-            var similar = result.Results.Where(r => !IsStrong(r)).Take(Math.Max(0, maxResults - strong.Count)).ToList();
+            // Filter out results below minSimilarity threshold (should already be filtered by DB, but double-check)
+            var filteredResults = result.Results.Where(r => r.SimilarityScore >= minSimilarity).ToList();
+            
+            var strong = filteredResults.Where(IsStrong).Take(maxResults).ToList();
+            var similar = filteredResults.Where(r => !IsStrong(r)).Take(Math.Max(0, maxResults - strong.Count)).ToList();
 
             // Send header/meta
             await WriteEventAsync("header", new
             {
                 query = queryName,
-                total = result.TotalResults,
+                total = strong.Count + similar.Count,
                 strongCount = strong.Count,
                 similarCount = similar.Count
             });
