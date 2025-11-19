@@ -16,6 +16,16 @@
                     <MudText Typo="Typo.body2" Color="Color.Secondary">
                         Found @Response.TotalMatches matches in @Response.ExecutionTime.ToString("F0")ms
                     </MudText>
+                    @if (Response.Results?.Any() == true)
+                    {
+                        var counts = GetLiveCounts(Response.Results);
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Exact: @counts.Exact 
+                            &nbsp;·&nbsp; Nickname: @counts.Nickname 
+                            &nbsp;·&nbsp; Fuzzy: @counts.Fuzzy 
+                            &nbsp;·&nbsp; Phonetic: @counts.Phonetic
+                        </MudText>
+                    }
                 </div>
             </MudStack>
             
@@ -182,7 +192,7 @@
             <!-- Additional Possible Matches Section (Collapsible) -->
             @if (additionalMatches.Any())
             {
-                var autoExpand = strongMatches.Count < 5;
+                var autoExpand = strongMatches.Count < 5; // also covers zero-strong case
                 <MudExpansionPanels Class="mt-4" Elevation="2">
                     <MudExpansionPanel Expanded="@autoExpand">
                         <TitleContent>
@@ -376,6 +386,36 @@
 
 @code {
     [Parameter] public AdvancedSearchResponse? Response { get; set; }
+
+    private (int Exact, int Nickname, int Fuzzy, int Phonetic) GetLiveCounts(IEnumerable<SearchResult> results)
+    {
+        int exact = 0, nickname = 0, fuzzy = 0, phonetic = 0;
+        foreach (var r in results)
+        {
+            var mt = r.MatchType ?? string.Empty;
+            if (string.Equals(mt, "Exact", StringComparison.OrdinalIgnoreCase))
+            {
+                exact++;
+                continue;
+            }
+            if (string.Equals(mt, "NicknameExpansion", StringComparison.OrdinalIgnoreCase))
+            {
+                nickname++;
+                continue;
+            }
+
+            // Phonetic families
+            if (mt is "PrimaryDoubleMetaphone" or "AlternateDoubleMetaphone" or "BeiderMorse")
+            {
+                phonetic++;
+                continue;
+            }
+
+            // Treat all other types (including TokenContains, TrigramSimilarity, fuzzy classifications) as Fuzzy
+            fuzzy++;
+        }
+        return (exact, nickname, fuzzy, phonetic);
+    }
 
     private Color GetFlagColor(string flag) => flag.ToUpperInvariant() switch
     {

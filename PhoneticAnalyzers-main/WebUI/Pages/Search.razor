@@ -2,6 +2,9 @@
 @inject ISearchApiClient ApiClient
 @inject ISnackbar Snackbar
 @inject ILogger<Search> Logger
+@inject IConfiguration Config
+@inject IJSRuntime JS
+@using Microsoft.JSInterop
 
 <PageTitle>Advanced Name Search - Phonetic Analyzers</PageTitle>
 
@@ -21,6 +24,11 @@
             IsLoading="_isLoading" 
             OnSubmit="PerformSearch"
             OnClear="ClearSearch" />
+
+<MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+    <MudSwitch T="bool" @bind-Checked="_streamEnabled" Color="Color.Primary" />
+    <MudText Typo="Typo.body2">Stream results (exact & nicknames first)</MudText>
+</MudStack>
 
 <SearchResults Response="_searchResponse" />
 
@@ -207,6 +215,11 @@
     private AdvancedSearchResponse? _searchResponse;
     private bool _isLoading;
     private bool _showHelpDialog;
+    private bool _streamEnabled = true;
+    private bool _isStreaming;
+    private DotNetObjectReference<Search>? _sseRef;
+    private string _sseId = Guid.NewGuid().ToString();
+    private string _lastQueryText = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -229,6 +242,9 @@
             return;
         }
 
+        // Cancel any active stream when starting a new search (handles query change)
+        await StopStreamIfAny();
+
         _isLoading = true;
         _searchResponse = null;
 
@@ -247,11 +263,41 @@
                 IncludeMatchDetails = _searchRequest.IncludeMatchDetails
             };
 
-            _searchResponse = await ApiClient.AdvancedSearchAsync(apiRequest);
-            
-            if (_searchResponse != null)
+            if (_streamEnabled)
             {
-                Snackbar.Add($"Found {_searchResponse.TotalMatches} matches in {_searchResponse.ExecutionTime:F0}ms", Severity.Success);
+                // Initialize empty response for incremental updates
+                _searchResponse = new AdvancedSearchResponse
+                {
+                    Query = apiRequest.QueryName,
+                    Parameters = new SearchParameters
+                    {
+                        MaxResults = apiRequest.MaxResults ?? 50,
+                        MinSimilarityThreshold = apiRequest.MinSimilarityThreshold ?? 0.3,
+                        IncludeTrigramSimilarity = apiRequest.IncludeTrigramSimilarity ?? true,
+                        ExpandNicknames = apiRequest.ExpandNicknames ?? true,
+                        CountyId = apiRequest.CountyId,
+                        RecordType = apiRequest.RecordType
+                    },
+                    Results = new List<SearchResult>()
+                };
+
+                var approach = Config["ApiSettings:Approach"] ?? "NativeSQL";
+                var baseUrl = Config[$"ApiSettings:{approach}:SearchBaseUrl"] ?? "http://localhost:5100";
+                var strongMin = 0.72; // keep in sync with server default
+                var url = $"{baseUrl.TrimEnd('/')}/api/search/stream?queryName={Uri.EscapeDataString(apiRequest.QueryName)}&maxResults={apiRequest.MaxResults}&minSimilarity={apiRequest.MinSimilarityThreshold}&strongMin={strongMin}";
+
+                _isStreaming = true;
+                _lastQueryText = apiRequest.QueryName ?? string.Empty;
+                _sseRef = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("SSEClient.start", _sseId, url, _sseRef);
+            }
+            else
+            {
+                _searchResponse = await ApiClient.AdvancedSearchAsync(apiRequest);
+                if (_searchResponse != null)
+                {
+                    Snackbar.Add($"Found {_searchResponse.TotalMatches} matches in {_searchResponse.ExecutionTime:F0}ms", Severity.Success);
+                }
             }
         }
         catch (HttpRequestException ex)
@@ -270,10 +316,87 @@
         }
     }
 
-    private Task ClearSearch()
+    private async Task ClearSearch()
     {
         _searchResponse = null;
         Snackbar.Add("Search cleared", Severity.Info);
-        return Task.CompletedTask;
+        await StopStreamIfAny();
+        StateHasChanged();
+        return;
+    }
+
+    private async Task StopStreamIfAny()
+    {
+        if (_isStreaming)
+        {
+            try { await JS.InvokeVoidAsync("SSEClient.stop", _sseId); } catch { }
+            _isStreaming = false;
+            _sseRef?.Dispose();
+            _sseRef = null;
+        }
+    }
+
+    [JSInvokable]
+    public void OnSseOpen() { /* no-op */ }
+
+    [JSInvokable]
+    public void OnSseHeader(string json)
+    {
+        try
+        {
+            Logger.LogInformation("SSE header: {Json}", json);
+        }
+        catch {}
+    }
+
+    [JSInvokable]
+    public void OnSseStrong(string json)
+    {
+        try
+        {
+            var items = System.Text.Json.JsonSerializer.Deserialize<List<SearchResult>>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+            _searchResponse ??= new AdvancedSearchResponse { Results = new List<SearchResult>() };
+            _searchResponse.Results.AddRange(items);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to parse SSE strong batch");
+        }
+    }
+
+    [JSInvokable]
+    public void OnSseSimilar(string json)
+    {
+        try
+        {
+            var items = System.Text.Json.JsonSerializer.Deserialize<List<SearchResult>>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
+            _searchResponse ??= new AdvancedSearchResponse { Results = new List<SearchResult>() };
+            _searchResponse.Results.AddRange(items);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to parse SSE similar batch");
+        }
+    }
+
+    [JSInvokable]
+    public void OnSseComplete(string json)
+    {
+        try
+        {
+            _isStreaming = false;
+            Snackbar.Add("Results complete", Severity.Success);
+            StateHasChanged();
+        }
+        catch {}
+    }
+
+    [JSInvokable]
+    public void OnSseError(string message)
+    {
+        _isStreaming = false;
+        Snackbar.Add("Streaming error. Falling back to standard mode.", Severity.Error);
     }
 }
