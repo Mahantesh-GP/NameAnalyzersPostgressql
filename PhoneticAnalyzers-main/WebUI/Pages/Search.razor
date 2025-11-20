@@ -3,9 +3,6 @@
 @inject ISnackbar Snackbar
 @inject ILogger<Search> Logger
 @inject IConfiguration Config
-@inject IJSRuntime JS
-@using Microsoft.JSInterop
-@implements IDisposable
 
 <PageTitle>Advanced Name Search - Phonetic Analyzers</PageTitle>
 
@@ -26,38 +23,20 @@
             OnSubmit="PerformSearch"
             OnClear="ClearSearch" />
 
-<MudStack Spacing="2" Class="mb-2">
-    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-        <MudSwitch T="bool" @bind-Value="_streamEnabled" Color="Color.Primary" />
-        <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
-            <MudText Typo="Typo.body2">Stream results (exact & nicknames first)</MudText>
-            <MudTooltip Text="ON: High-confidence results appear immediately, followed by lower-confidence matches in batches. OFF: All results load together after search completes.">
-                <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Secondary" />
-            </MudTooltip>
-        </MudStack>
-        @if (_isStreaming)
-        {
-            <MudChip T="string" Size="Size.Small" Color="Color.Info" Icon="@Icons.Material.Filled.Stream" Variant="Variant.Filled">
-                <MudText Typo="Typo.caption" Style="font-weight: 600;">Streaming results...</MudText>
-            </MudChip>
-        }
-    </MudStack>
-</MudStack>
-
-@if (_isStreaming && (_searchResponse == null || !_searchResponse.Results.Any()))
+@if (_isLoading && (_searchResponse == null || !_searchResponse.Results.Any()))
 {
     <MudPaper Class="pa-6 mt-4 text-center" Elevation="2">
         <MudStack AlignItems="AlignItems.Center" Spacing="3">
             <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
-            <MudText Typo="Typo.h6" Color="Color.Primary">Loading results...</MudText>
+            <MudText Typo="Typo.h6" Color="Color.Primary">Searching...</MudText>
             <MudText Typo="Typo.body2" Color="Color.Secondary">
-                Exact matches and nicknames will appear first, followed by similar results
+                Analyzing names across multiple strategies
             </MudText>
         </MudStack>
     </MudPaper>
 }
 
-<SearchResults Response="_searchResponse" IsStreaming="_isStreaming" ShowCategoryView="_categoryView" />
+<SearchResults Response="_searchResponse" ShowCategoryView="_categoryView" />
 
 <MudDialog @bind-Visible="_showHelpDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
     <TitleContent>
@@ -242,12 +221,7 @@
     private AdvancedSearchResponse? _searchResponse;
     private bool _isLoading;
     private bool _showHelpDialog;
-    private bool _streamEnabled = true;
     private bool _categoryView = true;
-    private bool _isStreaming;
-    private DotNetObjectReference<Search>? _sseRef;
-    private string _sseId = Guid.NewGuid().ToString();
-    private string _lastQueryText = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -270,9 +244,6 @@
             return;
         }
 
-        // Cancel any active stream when starting a new search (handles query change)
-        await StopStreamIfAny();
-
         _isLoading = true;
         _searchResponse = null;
 
@@ -291,41 +262,10 @@
                 IncludeMatchDetails = _searchRequest.IncludeMatchDetails
             };
 
-            if (_streamEnabled)
+            _searchResponse = await ApiClient.AdvancedSearchAsync(apiRequest);
+            if (_searchResponse != null)
             {
-                // Initialize empty response for incremental updates
-                _searchResponse = new AdvancedSearchResponse
-                {
-                    Query = apiRequest.QueryName,
-                    Parameters = new SearchParameters
-                    {
-                        MaxResults = apiRequest.MaxResults ?? 50,
-                        MinSimilarityThreshold = apiRequest.MinSimilarityThreshold ?? 0.3,
-                        IncludeTrigramSimilarity = apiRequest.IncludeTrigramSimilarity ?? true,
-                        ExpandNicknames = apiRequest.ExpandNicknames ?? true,
-                        CountyId = apiRequest.CountyId,
-                        RecordType = apiRequest.RecordType
-                    },
-                    Results = new List<SearchResult>()
-                };
-
-                var approach = Config["ApiSettings:Approach"] ?? "NativeSQL";
-                var baseUrl = Config[$"ApiSettings:{approach}:SearchBaseUrl"] ?? "http://localhost:5100";
-                var strongMin = 0.72; // keep in sync with server default
-                var url = $"{baseUrl.TrimEnd('/')}/api/search/stream?queryName={Uri.EscapeDataString(apiRequest.QueryName)}&maxResults={apiRequest.MaxResults}&minSimilarity={apiRequest.MinSimilarityThreshold}&strongMin={strongMin}";
-
-                _isStreaming = true;
-                _lastQueryText = apiRequest.QueryName ?? string.Empty;
-                _sseRef = DotNetObjectReference.Create(this);
-                await JS.InvokeVoidAsync("SSEClient.start", _sseId, url, _sseRef);
-            }
-            else
-            {
-                _searchResponse = await ApiClient.AdvancedSearchAsync(apiRequest);
-                if (_searchResponse != null)
-                {
-                    Snackbar.Add($"Found {_searchResponse.TotalMatches} matches in {_searchResponse.ExecutionTime:F0}ms", Severity.Success);
-                }
+                Snackbar.Add($"Found {_searchResponse.TotalMatches} matches in {_searchResponse.ExecutionTime:F0}ms", Severity.Success);
             }
         }
         catch (HttpRequestException ex)
@@ -344,102 +284,12 @@
         }
     }
 
-    private async Task ClearSearch()
+    private void ClearSearch()
     {
         _searchResponse = null;
         Snackbar.Add("Search cleared", Severity.Info);
-        await StopStreamIfAny();
-        StateHasChanged();
-        return;
-    }
-
-    private async Task StopStreamIfAny()
-    {
-        if (_isStreaming)
-        {
-            try { await JS.InvokeVoidAsync("SSEClient.stop", _sseId); } catch { }
-            _isStreaming = false;
-            _sseRef?.Dispose();
-            _sseRef = null;
-        }
-    }
-
-    [JSInvokable]
-    public void OnSseOpen() { /* no-op */ }
-
-    [JSInvokable]
-    public void OnSseHeader(string json)
-    {
-        try
-        {
-            Logger.LogInformation("SSE header: {Json}", json);
-        }
-        catch {}
-    }
-
-    [JSInvokable]
-    public void OnSseStrong(string json)
-    {
-        try
-        {
-            var items = System.Text.Json.JsonSerializer.Deserialize<List<SearchResult>>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-            _searchResponse ??= new AdvancedSearchResponse { Results = new List<SearchResult>() };
-            _searchResponse.Results.AddRange(items);
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to parse SSE strong batch");
-        }
-    }
-
-    [JSInvokable]
-    public void OnSseSimilar(string json)
-    {
-        try
-        {
-            var items = System.Text.Json.JsonSerializer.Deserialize<List<SearchResult>>(json, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new();
-            _searchResponse ??= new AdvancedSearchResponse { Results = new List<SearchResult>() };
-            _searchResponse.Results.AddRange(items);
-            StateHasChanged();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Failed to parse SSE similar batch");
-        }
-    }
-
-    [JSInvokable]
-    public void OnSseComplete(string json)
-    {
-        try
-        {
-            _isStreaming = false;
-            _isLoading = false;
-            var count = _searchResponse?.Results?.Count ?? 0;
-            Snackbar.Add($"Streaming complete: {count} results", Severity.Success);
-            StateHasChanged();
-        }
-        catch {}
-    }
-
-    [JSInvokable]
-    public void OnSseError(string message)
-    {
-        _isStreaming = false;
-        _isLoading = false;
-        Snackbar.Add("Streaming error. Falling back to standard mode.", Severity.Error);
         StateHasChanged();
     }
 
-    private void OnCategoryViewChanged(bool value)
-    {
-        _categoryView = value;
-        StateHasChanged(); // Force re-render when toggle changes
-    }
 
-    public void Dispose()
-    {
-        _sseRef?.Dispose();
-    }
 }
