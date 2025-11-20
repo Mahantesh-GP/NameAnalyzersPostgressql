@@ -383,6 +383,7 @@ SELECT person_id, full_name, match_type, similarity_score, matched_field, matche
 FROM ranked
 WHERE (county_filter IS NULL OR county = county_filter)
   AND (flag_filter IS NULL OR flag = flag_filter)
+  AND similarity_score >= min_similarity  -- Apply min_similarity threshold to all results
 ORDER BY match_priority ASC, similarity_score DESC, full_name ASC
 LIMIT max_results;
 $$;

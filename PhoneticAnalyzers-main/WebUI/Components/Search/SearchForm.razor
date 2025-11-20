@@ -34,17 +34,20 @@
                     MaxItems="10" />
             </MudItem>
 
-            <!-- Max Results -->
-            <MudItem xs="6" md="3">
-                <MudNumericField 
-                    @bind-Value="Model.MaxResults" 
-                    Label="Max Results" 
-                    Variant="Variant.Outlined"
-                    Min="1"
-                    Max="200"
-                    Step="10"
-                    HelperText="1-200 results" />
-            </MudItem>
+            <!-- Max Results (only in list view) -->
+            @if (!ShowCategoryView)
+            {
+                <MudItem xs="6" md="3">
+                    <MudNumericField 
+                        @bind-Value="Model.MaxResults" 
+                        Label="Max Results" 
+                        Variant="Variant.Outlined"
+                        Min="1"
+                        Max="200"
+                        Step="10"
+                        HelperText="List view only" />
+                </MudItem>
+            }
 
             <!-- Min Similarity -->
             <MudItem xs="6" md="3">
@@ -138,6 +141,7 @@
     [Parameter] public AdvancedSearchRequest Model { get; set; } = new();
     [Parameter] public List<CountyInfo>? Counties { get; set; }
     [Parameter] public bool IsLoading { get; set; }
+    [Parameter] public bool ShowCategoryView { get; set; }
     [Parameter] public EventCallback OnSubmit { get; set; }
     [Parameter] public EventCallback OnClear { get; set; }
 
