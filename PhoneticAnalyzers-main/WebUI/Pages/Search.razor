@@ -23,6 +23,11 @@
             OnSubmit="PerformSearch"
             OnClear="ClearSearch" />
 
+<MudStack Row AlignItems="AlignItems.Center" Spacing="2" Class="mb-3">
+    <MudSwitch T="bool" @bind-Value="_categoryView" Color="Color.Primary" />
+    <MudText Typo="Typo.body2">Group by strategy (4 columns view)</MudText>
+</MudStack>
+
 @if (_isLoading && (_searchResponse == null || !_searchResponse.Results.Any()))
 {
     <MudPaper Class="pa-6 mt-4 text-center" Elevation="2">
@@ -221,7 +226,7 @@
     private AdvancedSearchResponse? _searchResponse;
     private bool _isLoading;
     private bool _showHelpDialog;
-    private bool _categoryView = true;
+    private bool _categoryView = false;
 
     protected override async Task OnInitializedAsync()
     {

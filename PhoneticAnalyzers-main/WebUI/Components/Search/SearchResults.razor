@@ -15,12 +15,28 @@ else
             <MudStack Spacing="2" Class="mt-3">
                 @foreach (var r in Response.Results.Take(50))
                 {
-                    <MudPaper Class="pa-2" Elevation="0" Style="@($"border-left:4px solid {GetScoreBorderColor(r.SimilarityScore)}")">
+                    <MudPaper Class="pa-3" Elevation="0" Style="@($"border-left:4px solid {GetScoreBorderColor(r.SimilarityScore)}")">
                         <MudStack Row Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
-                            <MudText Typo="Typo.body1">@r.FullName</MudText>
-                            <MudChip T="string" Color="@GetScoreColor(r.SimilarityScore)" Variant="Variant.Filled">@r.SimilarityScore.ToString("P0")</MudChip>
+                            <MudText Typo="Typo.body1" Style="font-weight: 500;">@r.FullName</MudText>
+                            <MudChip T="string" Color="@GetScoreColor(r.SimilarityScore)" Variant="Variant.Filled" Size="Size.Small">@r.SimilarityScore.ToString("P0")</MudChip>
                         </MudStack>
-                        <MudText Typo="Typo.caption" Color="Color.Secondary">@r.MatchType</MudText>
+                        <MudStack Row Spacing="3" Class="mt-2">
+                            <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                                <MudIcon Icon="@Icons.Material.Filled.LocationOn" Size="Size.Small" Color="Color.Secondary" />
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">COUNTY</MudText>
+                                <MudText Typo="Typo.body2">@(r.County ?? "N/A")</MudText>
+                            </MudStack>
+                            <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                                <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" Color="Color.Secondary" />
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">TYPE</MudText>
+                                <MudText Typo="Typo.body2">@(string.IsNullOrEmpty(r.Flag) ? "N/A" : (r.Flag == "I" ? "Individual" : "Business"))</MudText>
+                            </MudStack>
+                            <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                                <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" Color="Color.Info" />
+                                <MudText Typo="Typo.caption" Color="Color.Info">WHY THIS MATCHED</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Info">@r.MatchType</MudText>
+                            </MudStack>
+                        </MudStack>
                     </MudPaper>
                 }
             </MudStack>
