@@ -53,7 +53,7 @@ qtokens AS (
     token_position,
     CASE 
       -- Common company/legal suffixes (low weight)
-      WHEN token IN ('LIMITED', 'LTD', 'PRIVATE', 'PVT', 'LLC', 'INC', 'CORP', 'CO', 
+      WHEN token IN ('Lcd IMITED', 'LTD', 'PRIVATE', 'PVT', 'LLC', 'INC', 'CORP', 'CO', 
                      'CORPORATION', 'COMPANY', 'SOLUTIONS', 'SERVICES', 'GROUP', 
                      'ENTERPRISES', 'INDUSTRIES', 'INTERNATIONAL', 'GLOBAL') THEN 0.2
       -- Common connector words (very low weight)
@@ -121,15 +121,17 @@ exact_matches AS (
     AND NOT EXISTS (SELECT 1 FROM early_exact)
 ), nickname_matches AS (
   -- Score nickname matches based on coverage, weighted by query complexity
+  -- Higher scores than trigram to ensure nicknames are prioritized
   SELECT 
     nmr.person_id,
     pr.full_name,
     'NicknameExpansion'::text AS match_type,
     LEAST(
-      -- For single-token queries (like "bob"), give full credit; for multi-token, scale by coverage
+      -- For single-token queries (like "bob"), give very high score (0.92-0.98)
+      -- For multi-token, scale by coverage but keep above trigram threshold
       CASE 
-        WHEN (SELECT COUNT(*) FROM qtokens_weighted) = 1 THEN 0.98
-        ELSE 0.70 + 0.28 * (SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0))
+        WHEN (SELECT COUNT(*) FROM qtokens_weighted) = 1 THEN 0.92
+        ELSE 0.75 + 0.23 * (SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0))
       END,
       0.98
     ) AS similarity_score,
@@ -338,8 +340,29 @@ exact_matches AS (
   SELECT * FROM rule_based_matches WHERE include_fuzzy = TRUE
   UNION ALL
   SELECT * FROM phonetic_matches WHERE include_fuzzy = TRUE
+), deduped_matches AS (
+  -- Deduplicate: prefer Nickname over Trigram for same person
+  -- This handles cases where "Bill" matches "William" via both nickname expansion AND token match
+  SELECT 
+    person_id,
+    full_name,
+    match_type,
+    similarity_score,
+    matched_field,
+    matched_value,
+    county,
+    flag,
+    match_metadata,
+    CASE match_type 
+      WHEN 'Exact' THEN 1
+      WHEN 'Nickname' THEN 2
+      WHEN 'NicknameExpansion' THEN 2
+      WHEN 'TrigramSimilarity' THEN 3
+      ELSE 4
+    END AS match_priority
+  FROM all_matches
 ), ranked AS (
-  -- Keep best match per person, with FIXED priority: Exact=1, Nickname=2, Trigram=3, Phonetic=4
+  -- Keep best match per person, prioritizing: Exact > Nickname > Trigram > Phonetic
   SELECT DISTINCT ON (person_id)
          person_id, 
          full_name, 
@@ -350,21 +373,10 @@ exact_matches AS (
          county, 
          flag, 
          match_metadata,
-         -- PHASE 1 FIX: Correct priority ordering (Exact=1, Nickname=2, Trigram=3, Phonetic=4)
-         CASE match_type 
-           WHEN 'Exact' THEN 1
-           WHEN 'Nickname' THEN 2
-           WHEN 'TrigramSimilarity' THEN 3
-           ELSE 4
-         END AS match_priority
-  FROM all_matches
+         match_priority
+  FROM deduped_matches
   ORDER BY person_id, 
-           CASE match_type 
-             WHEN 'Exact' THEN 1
-             WHEN 'Nickname' THEN 2
-             WHEN 'TrigramSimilarity' THEN 3
-             ELSE 4
-           END,
+           match_priority ASC,
            similarity_score DESC
 )
 SELECT person_id, full_name, match_type, similarity_score, matched_field, matched_value, county, flag, match_metadata

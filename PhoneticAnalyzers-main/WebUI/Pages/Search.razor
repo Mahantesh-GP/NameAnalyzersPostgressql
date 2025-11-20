@@ -42,16 +42,6 @@
             </MudChip>
         }
     </MudStack>
-    
-    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-        <MudSwitch T="bool" Value="_categoryView" ValueChanged="OnCategoryViewChanged" Color="Color.Primary" />
-        <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
-            <MudText Typo="Typo.body2">Group by match type</MudText>
-            <MudTooltip Text="ON: Shows top 5 Exact, Nickname, Fuzzy, and Phonetic matches in separate sections. OFF: Shows high-confidence matches first, then lower-confidence matches.">
-                <MudIcon Icon="@Icons.Material.Filled.Info" Size="Size.Small" Color="Color.Secondary" />
-            </MudTooltip>
-        </MudStack>
-    </MudStack>
 </MudStack>
 
 @if (_isStreaming && (_searchResponse == null || !_searchResponse.Results.Any()))
@@ -253,7 +243,7 @@
     private bool _isLoading;
     private bool _showHelpDialog;
     private bool _streamEnabled = true;
-    private bool _categoryView = false;
+    private bool _categoryView = true;
     private bool _isStreaming;
     private DotNetObjectReference<Search>? _sseRef;
     private string _sseId = Guid.NewGuid().ToString();
