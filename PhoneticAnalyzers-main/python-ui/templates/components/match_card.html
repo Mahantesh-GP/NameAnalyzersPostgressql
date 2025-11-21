@@ -1,0 +1,30 @@
+<div class="border border-gray-200 rounded-lg p-4 card-shadow">
+    <div class="flex items-start justify-between">
+        <div class="flex-1">
+            <div class="flex items-center space-x-2">
+                <h5 class="font-semibold text-gray-900">
+                    {{ match.full_name }}
+                </h5>
+                {% if match.flag %}
+                <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded">{{ match.flag }}</span>
+                {% endif %}
+            </div>
+            <div class="mt-1 space-y-1 text-sm text-gray-600">
+                {% if match.county_name %}
+                <p>📍 {{ match.county_name }} ({{ match.county }})</p>
+                {% endif %}
+                {% if match.normalized_name %}
+                <p class="text-gray-500 text-xs">{{ match.normalized_name }}</p>
+                {% endif %}
+                {% if match.external_id %}
+                <p class="text-gray-500 text-xs">ID: {{ match.external_id }}</p>
+                {% endif %}
+            </div>
+        </div>
+        <div class="text-right ml-3">
+            <div class="text-xl font-bold text-indigo-600">
+                {{ "%.0f"|format(match.similarity_score) }}%
+            </div>
+        </div>
+    </div>
+</div>

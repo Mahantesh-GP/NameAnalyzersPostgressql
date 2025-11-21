@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Search - {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <!-- Hero Section -->
+    <div class="text-center mb-8">
+        <h2 class="text-4xl font-bold text-gray-900 mb-2">Phonetic Person Search</h2>
+        <p class="text-lg text-gray-600">Find people using exact, nickname, fuzzy, and phonetic matching</p>
+    </div>
+
+    <!-- Search Form -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+        {% include "components/search_form.html" %}
+    </div>
+
+    <!-- Results Container -->
+    <div id="results-container" class="hidden" x-data="{ viewType: 'list' }">
+        <!-- View Toggle -->
+        <div class="bg-white rounded-t-lg shadow-lg p-4 border-b border-gray-200">
+            <div class="flex space-x-2">
+                <button type="button"
+                        @click="viewType = 'list'"
+                        :class="viewType === 'list' ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg' : 'bg-gray-200 text-gray-700'"
+                        class="flex-1 px-4 py-2.5 rounded-lg font-medium transition duration-200 transform hover:scale-105">
+                    <span class="flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"></path>
+                        </svg>
+                        <span>List View</span>
+                    </span>
+                </button>
+                <button type="button"
+                        @click="viewType = 'grouped'"
+                        :class="viewType === 'grouped' ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg' : 'bg-gray-200 text-gray-700'"
+                        class="flex-1 px-4 py-2.5 rounded-lg font-medium transition duration-200 transform hover:scale-105">
+                    <span class="flex items-center justify-center space-x-2">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M3 4a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 8a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4zm8-8a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V4zm0 8a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path>
+                        </svg>
+                        <span>Grouped View</span>
+                    </span>
+                </button>
+            </div>
+        </div>
+        <div id="results-content" class="bg-white rounded-b-lg shadow-lg p-6">
+            <!-- Results will be inserted here by HTMX -->
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="text-center py-16">
+        <svg class="mx-auto h-24 w-24 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <h3 class="text-xl font-medium text-gray-900 mb-2">Start your search</h3>
+        <p class="text-gray-600">Enter a first name, last name, or county to find matching persons</p>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading-indicator" class="hidden fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 flex items-center space-x-4">
+            <svg class="animate-spin h-8 w-8 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" 
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-lg font-medium text-gray-900">Searching...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Alpine.js for view toggle state -->
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('searchState', () => ({
+            viewType: 'list',
+            toggleView() {
+                this.viewType = this.viewType === 'list' ? 'grouped' : 'list';
+            }
+        }));
+    });
+</script>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Show/hide loading indicator on HTMX requests
+    document.body.addEventListener('htmx:beforeRequest', function() {
+        document.getElementById('loading-indicator').classList.remove('hidden');
+        document.getElementById('empty-state').classList.add('hidden');
+    });
+
+    document.body.addEventListener('htmx:afterRequest', function() {
+        document.getElementById('loading-indicator').classList.add('hidden');
+    });
+
+    // Show results container when results are loaded
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.id === 'results-content') {
+            document.getElementById('results-container').classList.remove('hidden');
+        }
+    });
+</script>
+{% endblock %}
