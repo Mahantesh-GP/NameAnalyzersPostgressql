@@ -42,7 +42,7 @@
     </MudPaper>
 }
 
-<SearchResults Response="_searchResponse" ShowCategoryView="_categoryView" />
+<SearchResults Response="_filteredResponse" ShowCategoryView="_categoryView" />
 
 <MudDialog @bind-Visible="_showHelpDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
     <TitleContent>
@@ -223,13 +223,15 @@
     {
         MaxResults = 50,
         MinSimilarityThreshold = 30,
-        IncludeTrigramSimilarity = true,
+        IncludeTrigramSimilarity = false,
         ExpandNicknames = true,
+        IncludePhonetic = false,
         IncludeMatchDetails = true
     };
 
     private List<CountyInfo> _counties = new();
     private AdvancedSearchResponse? _searchResponse;
+    private AdvancedSearchResponse? _filteredResponse;
     private bool _isLoading;
     private bool _showHelpDialog;
     private bool _categoryView = false;
@@ -261,22 +263,27 @@
         try
         {
             // Convert percentage (0-100) to decimal (0.0-1.0) for API
+            // Always fetch ALL strategies from backend (Exact + Nickname + Fuzzy + Phonetic)
+            // Then filter on client side based on checkboxes
             var apiRequest = new AdvancedSearchRequest
             {
                 QueryName = _searchRequest.QueryName,
-                MaxResults = _searchRequest.MaxResults,
+                MaxResults = 200, // Fetch more to ensure we have enough after filtering
                 MinSimilarityThreshold = _searchRequest.MinSimilarityThreshold / 100.0,
                 CountyId = _searchRequest.CountyId,
                 RecordType = _searchRequest.RecordType,
-                IncludeTrigramSimilarity = _searchRequest.IncludeTrigramSimilarity,
-                ExpandNicknames = _searchRequest.ExpandNicknames,
+                IncludeTrigramSimilarity = true, // Always fetch all strategies
+                ExpandNicknames = true,
                 IncludeMatchDetails = _searchRequest.IncludeMatchDetails
             };
 
             _searchResponse = await ApiClient.AdvancedSearchAsync(apiRequest);
+            
             if (_searchResponse != null)
             {
-                Snackbar.Add($"Found {_searchResponse.TotalMatches} matches in {_searchResponse.ExecutionTime:F0}ms", Severity.Success);
+                // Filter and distribute results based on user's checkbox selection
+                _filteredResponse = FilterAndDistributeResults(_searchResponse);
+                Snackbar.Add($"Found {_filteredResponse.TotalMatches} matches in {_searchResponse.ExecutionTime:F0}ms", Severity.Success);
             }
         }
         catch (HttpRequestException ex)
@@ -298,8 +305,88 @@
     private void ClearSearch()
     {
         _searchResponse = null;
+        _filteredResponse = null;
         Snackbar.Add("Search cleared", Severity.Info);
         StateHasChanged();
+    }
+
+    private AdvancedSearchResponse FilterAndDistributeResults(AdvancedSearchResponse response)
+    {
+        var maxResults = _searchRequest.MaxResults ?? 50;
+        
+        // Separate results by strategy type
+        var exactMatches = response.Results.Where(r => 
+            string.Equals(r.MatchType, "Exact", StringComparison.OrdinalIgnoreCase)).ToList();
+        
+        var nicknameMatches = response.Results.Where(r => 
+            string.Equals(r.MatchType, "NicknameExpansion", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(r.MatchType, "Nickname", StringComparison.OrdinalIgnoreCase)).ToList();
+        
+        var fuzzyMatches = response.Results.Where(r => 
+            string.Equals(r.MatchType, "TrigramSimilarity", StringComparison.OrdinalIgnoreCase)).ToList();
+        
+        var phoneticMatches = response.Results.Where(r => 
+            string.Equals(r.MatchType, "DoubleMetaphone", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(r.MatchType, "Metaphone", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(r.MatchType, "Soundex", StringComparison.OrdinalIgnoreCase)).ToList();
+        
+        // Build result list based on enabled strategies
+        var finalResults = new List<SearchResult>();
+        
+        // 1. Always include Exact matches (highest priority)
+        finalResults.AddRange(exactMatches);
+        
+        // Count enabled strategies (not including Exact which is always on)
+        var enabledStrategies = new List<string>();
+        if (_searchRequest.ExpandNicknames == true) enabledStrategies.Add("Nickname");
+        if (_searchRequest.IncludeTrigramSimilarity == true) enabledStrategies.Add("Fuzzy");
+        if (_searchRequest.IncludePhonetic == true) enabledStrategies.Add("Phonetic");
+        
+        int remainingSlots = maxResults - finalResults.Count;
+        
+        if (enabledStrategies.Count > 0 && remainingSlots > 0)
+        {
+            // Distribute remaining slots proportionally among enabled strategies
+            int slotsPerStrategy = remainingSlots / enabledStrategies.Count;
+            int extraSlots = remainingSlots % enabledStrategies.Count;
+            
+            // 2. Add Nickname matches if enabled
+            if (_searchRequest.ExpandNicknames == true)
+            {
+                int nicknameSlots = slotsPerStrategy + (extraSlots > 0 ? 1 : 0);
+                extraSlots = Math.Max(0, extraSlots - 1);
+                finalResults.AddRange(nicknameMatches.Take(nicknameSlots));
+            }
+            
+            // 3. Add Fuzzy matches if enabled
+            if (_searchRequest.IncludeTrigramSimilarity == true)
+            {
+                int fuzzySlots = slotsPerStrategy + (extraSlots > 0 ? 1 : 0);
+                extraSlots = Math.Max(0, extraSlots - 1);
+                finalResults.AddRange(fuzzyMatches.Take(fuzzySlots));
+            }
+            
+            // 4. Add Phonetic matches if enabled
+            if (_searchRequest.IncludePhonetic == true)
+            {
+                int phoneticSlots = slotsPerStrategy + (extraSlots > 0 ? 1 : 0);
+                finalResults.AddRange(phoneticMatches.Take(phoneticSlots));
+            }
+        }
+        
+        // Take only maxResults (in case exact matches exceeded limit)
+        finalResults = finalResults.Take(maxResults).ToList();
+        
+        return new AdvancedSearchResponse
+        {
+            Query = response.Query,
+            Parameters = response.Parameters,
+            TotalMatches = finalResults.Count,
+            ExecutionTime = response.ExecutionTime,
+            PhoneticCodes = response.PhoneticCodes,
+            Results = finalResults,
+            Warnings = response.Warnings
+        };
     }
 
 

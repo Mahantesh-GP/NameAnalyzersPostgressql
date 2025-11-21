@@ -363,6 +363,7 @@ exact_matches AS (
   FROM all_matches
 ), ranked AS (
   -- Keep best match per person, prioritizing: Exact > Nickname > Trigram > Phonetic
+  -- Then by highest score, then alphabetically by match_type for deterministic results
   SELECT DISTINCT ON (person_id)
          person_id, 
          full_name, 
@@ -377,7 +378,8 @@ exact_matches AS (
   FROM deduped_matches
   ORDER BY person_id, 
            match_priority ASC,
-           similarity_score DESC
+           similarity_score DESC,
+           match_type ASC  -- Tie-breaker: alphabetical order when same priority+score
 )
 SELECT person_id, full_name, match_type, similarity_score, matched_field, matched_value, county, flag, match_metadata
 FROM ranked

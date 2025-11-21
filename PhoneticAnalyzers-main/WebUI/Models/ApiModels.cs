@@ -22,6 +22,9 @@ public class AdvancedSearchRequest
     [JsonPropertyName("expandNicknames")]
     public bool? ExpandNicknames { get; set; } = true;
 
+    [JsonPropertyName("includePhonetic")]
+    public bool? IncludePhonetic { get; set; } = false;
+
     [JsonPropertyName("includeMatchDetails")]
     public bool? IncludeMatchDetails { get; set; } = true;
 

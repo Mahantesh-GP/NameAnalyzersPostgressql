@@ -100,7 +100,30 @@
                 </MudSelect>
             </MudItem>
 
-            <!-- Options hidden by request: Fuzzy and Nicknames default ON in model -->
+            <!-- Match Strategy Filters -->
+            <MudItem xs="12">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Match Strategies (Exact always included)</MudText>
+                <MudStack Row Spacing="3">
+                    <MudCheckBox @bind-Value="Model.ExpandNicknames" Color="Color.Primary" Dense="true">
+                        <MudText Typo="Typo.body2">
+                            <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" Class="mr-1" />
+                            Nickname
+                        </MudText>
+                    </MudCheckBox>
+                    <MudCheckBox @bind-Value="Model.IncludeTrigramSimilarity" Color="Color.Info" Dense="true">
+                        <MudText Typo="Typo.body2">
+                            <MudIcon Icon="@Icons.Material.Filled.BlurOn" Size="Size.Small" Class="mr-1" />
+                            Fuzzy
+                        </MudText>
+                    </MudCheckBox>
+                    <MudCheckBox @bind-Value="Model.IncludePhonetic" Color="Color.Warning" Dense="true">
+                        <MudText Typo="Typo.body2">
+                            <MudIcon Icon="@Icons.Material.Filled.RecordVoiceOver" Size="Size.Small" Class="mr-1" />
+                            Phonetic
+                        </MudText>
+                    </MudCheckBox>
+                </MudStack>
+            </MudItem>
 
             <!-- Submit and Clear Buttons -->
             <MudItem xs="12" Class="d-flex justify-center gap-3">
@@ -169,8 +192,9 @@
         Model.MinSimilarityThreshold = 50;
         Model.CountyId = null;
         Model.RecordType = null;
-        Model.IncludeTrigramSimilarity = true;
+        Model.IncludeTrigramSimilarity = false;
         Model.ExpandNicknames = true;
+        Model.IncludePhonetic = false;
         Model.IncludeMatchDetails = true;  // Always true
         
         await OnClear.InvokeAsync();
