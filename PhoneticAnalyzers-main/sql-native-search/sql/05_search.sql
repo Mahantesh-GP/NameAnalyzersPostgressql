@@ -63,17 +63,15 @@ qtokens AS (
     END AS token_weight
   FROM qtokens
 ),
--- PHASE 1 OPTIMIZATION: Pre-expand nicknames from nickname_maps (1,426 rows vs 1.3M person_names)
-expanded_qtokens AS (
-  SELECT DISTINCT qt.token, qt.token_weight
-  FROM qtokens_weighted qt
-  UNION
-  SELECT nm.nickname AS token, qt.token_weight
+-- PHASE 1 OPTIMIZATION: Pre-expand nicknames from nickname_maps ONLY if data exists
+-- This prevents fake "NicknameExpansion" results when nickname_maps is empty
+expanded_qtokens_via_nicknames AS (
+  SELECT nm.nickname AS token, qt.token_weight, qt.token AS original_token
   FROM qtokens_weighted qt
   JOIN nickname_maps nm ON nm.canonical_name = qt.token
   WHERE include_nicknames = TRUE
   UNION
-  SELECT nm.canonical_name AS token, qt.token_weight
+  SELECT nm.canonical_name AS token, qt.token_weight, qt.token AS original_token
   FROM qtokens_weighted qt
   JOIN nickname_maps nm ON nm.nickname = qt.token
   WHERE include_nicknames = TRUE
@@ -109,16 +107,20 @@ exact_matches AS (
     AND pr.business_core_name IS NOT NULL
     AND (pr.business_core_name = p.q OR pr.business_core_name = normalize_business_core(p.q))
 ), nickname_matches_raw AS (
-  -- Collect all nickname token matches
+  -- Collect ONLY real nickname matches (where nickname expansion actually happened)
+  -- This ensures "NicknameExpansion" results ONLY appear when nickname_maps has data
   SELECT 
     pn.person_id,
-    eqt.token AS query_token,
-    eqt.token_weight,
-    pn.name_token AS matched_token
-  FROM expanded_qtokens eqt
-  JOIN person_names pn ON pn.name_token = eqt.token
+    eqn.original_token AS query_token,
+    eqn.token_weight,
+    pn.name_token AS matched_token,
+    eqn.token AS expanded_nickname
+  FROM expanded_qtokens_via_nicknames eqn
+  JOIN person_names pn ON pn.name_token = eqn.token
   WHERE include_nicknames = TRUE
     AND NOT EXISTS (SELECT 1 FROM early_exact)
+    -- Ensure we matched via the EXPANDED nickname, not the original query token
+    AND eqn.token != eqn.original_token
 ), nickname_matches AS (
   -- Score nickname matches based on coverage, weighted by query complexity
   -- Higher scores than trigram to ensure nicknames are prioritized
@@ -149,6 +151,7 @@ exact_matches AS (
   FROM nickname_matches_raw nmr
   JOIN person pr ON pr.person_id = nmr.person_id AND pr.flag <> 'B'  -- Exclude businesses
   WHERE include_nicknames = TRUE
+    AND EXISTS (SELECT 1 FROM expanded_qtokens_via_nicknames)  -- Only if nicknames exist
   GROUP BY nmr.person_id, pr.full_name, pr.county, pr.flag
   -- For multi-token queries, require meaningful coverage (at least 40% matched)
   -- For single-token queries, allow all matches
@@ -335,10 +338,15 @@ exact_matches AS (
   UNION ALL
   SELECT * FROM exact_matches WHERE NOT EXISTS (SELECT 1 FROM early_exact)
   UNION ALL
-  SELECT * FROM nickname_matches WHERE include_nicknames = TRUE
+  -- ONLY include nickname matches if include_nicknames=TRUE AND nickname_maps has data
+  SELECT * FROM nickname_matches 
+  WHERE include_nicknames = TRUE 
+    AND EXISTS (SELECT 1 FROM expanded_qtokens_via_nicknames LIMIT 1)
   UNION ALL
+  -- Fuzzy/trigram matches ONLY if include_fuzzy=TRUE
   SELECT * FROM rule_based_matches WHERE include_fuzzy = TRUE
   UNION ALL
+  -- Phonetic matches ONLY if include_fuzzy=TRUE (they're considered "fuzzy" in the UI)
   SELECT * FROM phonetic_matches WHERE include_fuzzy = TRUE
 ), deduped_matches AS (
   -- Deduplicate: prefer Nickname over Trigram for same person
