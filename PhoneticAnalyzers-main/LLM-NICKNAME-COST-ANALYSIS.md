@@ -204,3 +204,14 @@ LEFT JOIN nickname_maps nm ON nm.original_token = pn.first_name;
 
 *Document Created: November 26, 2025*  
 *Last Updated: November 26, 2025*
+
+
+
+
+Model	Total Input (45M) Cost	Total Output (15M) Cost	Total Cost	Cost per Name (~50M)
+GPT-4o-Mini	$0.15 × 45 = $6.75	$0.60 × 15 = $9.00	$15.75	~ $0.000315
+GPT-4.1-Mini	$0.30 × 45 = $13.50	$1.20 × 15 = $18.00	$31.50	~ $0.00063
+GPT-3.5-Turbo	$0.50 × 45 = $22.50	$1.50 × 15 = $22.50	$45.00	~ $0.00090
+(full) GPT-4o	$2.50 × 45 = $112.50	$10.00 × 15 = $150.00	$262.50	~ $0.00525
+GPT-5-Mini	$0.25 × 45 = $11.25	$2.00 × 15 = $30.00	$41.25	~ $0.00083
+(full) GPT-5	$1.25 × 45 = $56.25	$10.00 × 15 = $150.00	$206.25	~ $0.004125
