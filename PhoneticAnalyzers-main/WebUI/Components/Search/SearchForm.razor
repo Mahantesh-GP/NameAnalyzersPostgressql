@@ -102,29 +102,33 @@
 
             <!-- Match Strategy Filters -->
             <MudItem xs="12">
-                <MudText Typo="Typo.subtitle2" Class="mb-2">Match Strategies (Exact always included)</MudText>
-                <MudStack Row Spacing="3">
-                    @* Nickname checkbox hidden - feature not yet enabled *@
-                    @* <MudCheckBox @bind-Value="Model.ExpandNicknames" Color="Color.Primary" Dense="true">
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Match Strategies</MudText>
+                <MudAlert Severity="Severity.Info" Dense="true" Class="mb-2">
+                    <MudText Typo="Typo.body2">
+                        <strong>Exact match</strong> always included. <strong>Fuzzy & Phonetic matching</strong> enabled by default for comprehensive results.
+                    </MudText>
+                </MudAlert>
+                @* All strategy checkboxes hidden - using optimal defaults *@
+                @* <MudStack Row Spacing="3">
+                    <MudCheckBox @bind-Value="Model.ExpandNicknames" Color="Color.Primary" Dense="true">
                         <MudText Typo="Typo.body2">
                             <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" Class="mr-1" />
                             Nickname
                         </MudText>
-                    </MudCheckBox> *@
+                    </MudCheckBox>
                     <MudCheckBox @bind-Value="Model.IncludeTrigramSimilarity" Color="Color.Info" Dense="true">
                         <MudText Typo="Typo.body2">
                             <MudIcon Icon="@Icons.Material.Filled.BlurOn" Size="Size.Small" Class="mr-1" />
                             Fuzzy & Phonetic
                         </MudText>
                     </MudCheckBox>
-                    @* Phonetic checkbox hidden - controlled by same parameter as Fuzzy *@
-                    @* <MudCheckBox @bind-Value="Model.IncludePhonetic" Color="Color.Warning" Dense="true">
+                    <MudCheckBox @bind-Value="Model.IncludePhonetic" Color="Color.Warning" Dense="true">
                         <MudText Typo="Typo.body2">
                             <MudIcon Icon="@Icons.Material.Filled.RecordVoiceOver" Size="Size.Small" Class="mr-1" />
                             Phonetic
                         </MudText>
-                    </MudCheckBox> *@
-                </MudStack>
+                    </MudCheckBox>
+                </MudStack> *@
             </MudItem>
 
             <!-- Submit and Clear Buttons -->
@@ -194,10 +198,10 @@
         Model.MinSimilarityThreshold = 50;
         Model.CountyId = null;
         Model.RecordType = null;
-        Model.IncludeTrigramSimilarity = false;
-        Model.ExpandNicknames = false;  // Hidden from UI, default to false
-        Model.IncludePhonetic = false;
-        Model.IncludeMatchDetails = true;  // Always true
+        Model.IncludeTrigramSimilarity = true;   // Default to true (fuzzy & phonetic enabled)
+        Model.ExpandNicknames = false;           // Hidden from UI, default to false
+        Model.IncludePhonetic = false;           // Hidden from UI, controlled by IncludeTrigramSimilarity
+        Model.IncludeMatchDetails = true;        // Always true
         
         await OnClear.InvokeAsync();
         StateHasChanged();

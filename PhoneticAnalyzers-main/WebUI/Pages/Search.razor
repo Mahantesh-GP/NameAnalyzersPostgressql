@@ -223,9 +223,9 @@
     {
         MaxResults = 50,
         MinSimilarityThreshold = 30,
-        IncludeTrigramSimilarity = false,
-        ExpandNicknames = false,  // Hidden from UI, default to false
-        IncludePhonetic = false,
+        IncludeTrigramSimilarity = true,   // Default to true (fuzzy & phonetic enabled)
+        ExpandNicknames = false,           // Hidden from UI, default to false
+        IncludePhonetic = false,           // Hidden from UI, controlled by IncludeTrigramSimilarity
         IncludeMatchDetails = true
     };
 
@@ -263,7 +263,7 @@
         try
         {
             // Convert percentage (0-100) to decimal (0.0-1.0) for API
-            // Pass UI checkbox values to backend to filter strategies at SQL level
+            // Pass configured values to backend - fuzzy & phonetic always enabled for best results
             var apiRequest = new AdvancedSearchRequest
             {
                 QueryName = _searchRequest.QueryName,
@@ -271,8 +271,8 @@
                 MinSimilarityThreshold = _searchRequest.MinSimilarityThreshold / 100.0,
                 CountyId = _searchRequest.CountyId,
                 RecordType = _searchRequest.RecordType,
-                IncludeTrigramSimilarity = _searchRequest.IncludeTrigramSimilarity ?? false, // Use UI checkbox
-                ExpandNicknames = _searchRequest.ExpandNicknames ?? false, // Use UI checkbox (hidden, defaults to false)
+                IncludeTrigramSimilarity = _searchRequest.IncludeTrigramSimilarity ?? true,  // Default true (fuzzy & phonetic)
+                ExpandNicknames = _searchRequest.ExpandNicknames ?? false,                    // Default false (no nickname data yet)
                 IncludeMatchDetails = _searchRequest.IncludeMatchDetails
             };
 
