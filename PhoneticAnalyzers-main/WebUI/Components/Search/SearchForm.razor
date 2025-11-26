@@ -114,15 +114,16 @@
                     <MudCheckBox @bind-Value="Model.IncludeTrigramSimilarity" Color="Color.Info" Dense="true">
                         <MudText Typo="Typo.body2">
                             <MudIcon Icon="@Icons.Material.Filled.BlurOn" Size="Size.Small" Class="mr-1" />
-                            Fuzzy
+                            Fuzzy & Phonetic
                         </MudText>
                     </MudCheckBox>
-                    <MudCheckBox @bind-Value="Model.IncludePhonetic" Color="Color.Warning" Dense="true">
+                    @* Phonetic checkbox hidden - controlled by same parameter as Fuzzy *@
+                    @* <MudCheckBox @bind-Value="Model.IncludePhonetic" Color="Color.Warning" Dense="true">
                         <MudText Typo="Typo.body2">
                             <MudIcon Icon="@Icons.Material.Filled.RecordVoiceOver" Size="Size.Small" Class="mr-1" />
                             Phonetic
                         </MudText>
-                    </MudCheckBox>
+                    </MudCheckBox> *@
                 </MudStack>
             </MudItem>
 
