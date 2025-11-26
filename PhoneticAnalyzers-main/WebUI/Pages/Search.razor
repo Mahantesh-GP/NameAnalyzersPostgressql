@@ -224,7 +224,7 @@
         MaxResults = 50,
         MinSimilarityThreshold = 30,
         IncludeTrigramSimilarity = false,
-        ExpandNicknames = true,
+        ExpandNicknames = false,  // Hidden from UI, default to false
         IncludePhonetic = false,
         IncludeMatchDetails = true
     };
@@ -263,8 +263,7 @@
         try
         {
             // Convert percentage (0-100) to decimal (0.0-1.0) for API
-            // Always fetch ALL strategies from backend (Exact + Nickname + Fuzzy + Phonetic)
-            // Then filter on client side based on checkboxes
+            // Pass UI checkbox values to backend to filter strategies at SQL level
             var apiRequest = new AdvancedSearchRequest
             {
                 QueryName = _searchRequest.QueryName,
@@ -272,8 +271,8 @@
                 MinSimilarityThreshold = _searchRequest.MinSimilarityThreshold / 100.0,
                 CountyId = _searchRequest.CountyId,
                 RecordType = _searchRequest.RecordType,
-                IncludeTrigramSimilarity = true, // Always fetch all strategies
-                ExpandNicknames = true,
+                IncludeTrigramSimilarity = _searchRequest.IncludeTrigramSimilarity ?? false, // Use UI checkbox
+                ExpandNicknames = _searchRequest.ExpandNicknames ?? false, // Use UI checkbox (hidden, defaults to false)
                 IncludeMatchDetails = _searchRequest.IncludeMatchDetails
             };
 

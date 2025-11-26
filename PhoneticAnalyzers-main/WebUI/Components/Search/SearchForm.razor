@@ -104,12 +104,13 @@
             <MudItem xs="12">
                 <MudText Typo="Typo.subtitle2" Class="mb-2">Match Strategies (Exact always included)</MudText>
                 <MudStack Row Spacing="3">
-                    <MudCheckBox @bind-Value="Model.ExpandNicknames" Color="Color.Primary" Dense="true">
+                    @* Nickname checkbox hidden - feature not yet enabled *@
+                    @* <MudCheckBox @bind-Value="Model.ExpandNicknames" Color="Color.Primary" Dense="true">
                         <MudText Typo="Typo.body2">
                             <MudIcon Icon="@Icons.Material.Filled.Person" Size="Size.Small" Class="mr-1" />
                             Nickname
                         </MudText>
-                    </MudCheckBox>
+                    </MudCheckBox> *@
                     <MudCheckBox @bind-Value="Model.IncludeTrigramSimilarity" Color="Color.Info" Dense="true">
                         <MudText Typo="Typo.body2">
                             <MudIcon Icon="@Icons.Material.Filled.BlurOn" Size="Size.Small" Class="mr-1" />
@@ -193,7 +194,7 @@
         Model.CountyId = null;
         Model.RecordType = null;
         Model.IncludeTrigramSimilarity = false;
-        Model.ExpandNicknames = true;
+        Model.ExpandNicknames = false;  // Hidden from UI, default to false
         Model.IncludePhonetic = false;
         Model.IncludeMatchDetails = true;  // Always true
         
