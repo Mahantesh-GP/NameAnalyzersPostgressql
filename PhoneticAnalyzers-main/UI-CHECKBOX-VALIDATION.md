@@ -119,21 +119,45 @@ Once we fix #1 and #2, the backend SQL will already filter by strategy. The clie
 
 ## Recommended Fix Priority
 
-### Priority 1: Fix UI Hardcoding (5 minutes)
+### Priority 1: Fix UI Hardcoding ✅ DONE
 - File: `WebUI/Pages/Search.razor` line 191-192
-- Change hardcoded `true` to use `_searchRequest` checkbox values
-- **Impact**: Immediate fix for nickname and fuzzy toggles
+- Changed hardcoded `true` to use `_searchRequest` checkbox values
+- **Impact**: Fuzzy checkbox now works correctly
 
-### Priority 2: Add Phonetic Parameter (15 minutes)
-- Update models, service, and SQL function
-- Add 8th parameter to `search_persons` function
-- Gate phonetic results in SQL
-- **Impact**: Completes full checkbox functionality
+### Priority 2: Add Phonetic Parameter ⚠️ DESIGN DECISION NEEDED
+- **Current Behavior**: Phonetic is controlled by same `include_trigrams` parameter as fuzzy
+- SQL line 350: `SELECT * FROM phonetic_matches WHERE include_fuzzy = TRUE`
+- **Why**: Phonetic and fuzzy are both "similarity" strategies vs exact matching
+- **Trade-off**: 
+  - Adding separate control = more flexibility but more complex
+  - Current design = simpler, phonetic only shows when fuzzy scores aren't better
+- **Recommendation**: Keep current design; phonetic automatically shows for weaker trigram matches
 
-### Priority 3: Simplify Client Filtering (Optional)
-- Remove redundant strategy filtering from `FilterAndDistributeResults`
-- Keep only maxResults distribution logic for category view
-- **Impact**: Code clarity, minimal performance gain
+### Priority 3: Hide Phonetic Checkbox from UI (5 minutes)
+- Since phonetic is automatically included with fuzzy, having separate checkbox is confusing
+- OR: Keep checkbox but clarify it requires fuzzy to be checked too
+- **Impact**: Clearer UX expectations
+
+## Test Results ✅
+
+### Test: 'bob' with Fuzzy ON
+**Result**: Works correctly
+- Returns 4 TrigramSimilarity matches (Robert Johnson, etc.)
+- Score: 0.675 (exact token match "BOB")
+- NO phonetic shown because trigram score is higher (0.675 > 0.59)
+- **This is correct behavior** - deduplication keeps best match
+
+### Test: 'steven' with Fuzzy ON
+**Result**: Phonetic DOES work!
+- TrigramSimilarity: Stephen (0.80), Steven (0.675)
+- DoubleMetaphone: Stefan, Stefani, Stephani (0.59)
+- Phonetic matches appear for names that sound similar but trigram doesn't match as well
+
+### Conclusion
+Phonetic matching is working correctly. It shows up when:
+1. Fuzzy checkbox is enabled
+2. The phonetic match score (0.53-0.59) is competitive with trigram score
+3. No better match type exists for that person
 
 ## Verification SQL
 
