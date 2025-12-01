@@ -35,3 +35,21 @@ EXPLORATION SUMMARY
 └─────────────────────────────────────────────────────────────────────────────────────┘
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+Why We Explored Azure AI Search → Shifted to PostgreSQL
+1. Azure AI Search: Powerful But Prohibitively Expensive
+
+Azure AI Search with Azure OpenAI LLM offered excellent capabilities: custom analyzers, hybrid search, and intelligent nickname expansion
+For 1.36B records, operational cost reached ~$4,000/month ($48K+/year)
+Cost-prohibitive at scale when processing massive datasets with continuous enrichment needs
+2. PostgreSQL Native: 80% of Capability at Zero Cost
+
+PostgreSQL built-in extensions (pg_trgm for fuzzy matching, Soundex/Metaphone for phonetic matching) cover most real-world name variations
+Handles typos, spelling variations, sounds-alike names, and fuzzy matches without LLM-based nickname expansion
+Open-source, zero licensing cost—ideal for billion-scale datasets
+3. Smart Trade-off: Practicality Over Perfection
+
+Azure AI Search provides perfect accuracy via LLM nickname expansion but costs 48K+/year
+PostgreSQL delivers 80% matching quality (phonetic + fuzzy + exact) for $0 with superior performance at 1.36B scale
+Business decision: Deploy PostgreSQL for immediate value with cost savings, knowing it handles the majority of use cases effectively
