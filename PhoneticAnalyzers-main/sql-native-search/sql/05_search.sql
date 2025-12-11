@@ -8,7 +8,7 @@ CREATE OR REPLACE FUNCTION search_persons(
   county_filter TEXT DEFAULT NULL,
   flag_filter TEXT DEFAULT NULL,
   include_fuzzy BOOLEAN DEFAULT TRUE,
-  include_nicknames BOOLEAN DEFAULT TRUE
+  include_nicknames BOOLEAN DEFAULT FALSE
 ) RETURNS TABLE (
   person_id BIGINT,
   full_name TEXT,
@@ -360,15 +360,10 @@ exact_matches AS (
   GROUP BY ptm.person_id, pr.full_name, ptm.phonetic_type, pr.county, pr.flag, qs.qtoken_count, qs.total_query_weight
   LIMIT 1000  -- Cap phonetic candidates
 ), all_matches AS (
-  -- Return early exact matches immediately if found
+  -- Return all matches: exact + fuzzy + phonetic (no nickname variations)
   SELECT * FROM early_exact
   UNION ALL
   SELECT * FROM exact_matches WHERE NOT EXISTS (SELECT 1 FROM early_exact)
-  UNION ALL
-  -- ONLY include nickname matches if include_nicknames=TRUE AND nickname_maps has data
-  SELECT * FROM nickname_matches 
-  WHERE include_nicknames = TRUE 
-    AND EXISTS (SELECT 1 FROM expanded_qtokens_via_nicknames LIMIT 1)
   UNION ALL
   -- Fuzzy/trigram matches ONLY if include_fuzzy=TRUE
   SELECT * FROM rule_based_matches WHERE include_fuzzy = TRUE
