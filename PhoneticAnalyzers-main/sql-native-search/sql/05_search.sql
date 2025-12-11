@@ -1,5 +1,5 @@
 -- Search function performing exact, trigram, and phonetic matches with nickname coverage
--- Fixed: Skip short tokens, aggregate match quality per person, prioritize query name matches
+-- OPTIMIZED: Filters applied EARLY, cached subqueries, reduced computation in expensive joins
 
 CREATE OR REPLACE FUNCTION search_persons(
   query_name TEXT,
@@ -23,7 +23,7 @@ CREATE OR REPLACE FUNCTION search_persons(
 WITH params AS (
   SELECT normalize_name(query_name) AS q
 ),
--- PHASE 1 OPTIMIZATION: Early bailout for exact matches
+-- PHASE 1 OPTIMIZATION: Early bailout for exact matches WITH FILTERS
 early_exact AS (
   SELECT pr.person_id, pr.full_name, 'Exact'::text AS match_type,
          1.0::float8 AS similarity_score,
@@ -62,6 +62,12 @@ qtokens AS (
       ELSE 1.0
     END AS token_weight
   FROM qtokens
+), qtokens_stats AS (
+  -- CACHE: Pre-compute stats to avoid repeated subqueries
+  SELECT 
+    SUM(token_weight) AS total_query_weight,
+    COUNT(*) AS qtoken_count
+  FROM qtokens_weighted
 ),
 -- PHASE 1 OPTIMIZATION: Pre-expand nicknames from nickname_maps ONLY if data exists
 -- This prevents fake "NicknameExpansion" results when nickname_maps is empty
@@ -77,7 +83,7 @@ expanded_qtokens_via_nicknames AS (
   WHERE include_nicknames = TRUE
 ),
 exact_matches AS (
-  -- Full name exact match (individuals and businesses)
+  -- Full name exact match (individuals and businesses) - APPLY FILTERS EARLY
   SELECT pr.person_id, pr.full_name, 'Exact'::text AS match_type,
          1.0::float8 AS similarity_score,
          'FullName'::text AS matched_field,
@@ -90,8 +96,10 @@ exact_matches AS (
          ) AS match_metadata
   FROM params p
   JOIN person pr ON pr.normalized_name = p.q
+  WHERE (county_filter IS NULL OR pr.county = county_filter)
+    AND (flag_filter IS NULL OR pr.flag = flag_filter)
   UNION ALL
-  -- Business core name match (e.g., "ABC SOLUTIONS" matches "ABC SOLUTIONS LLC")
+  -- Business core name match (e.g., "ABC SOLUTIONS" matches "ABC SOLUTIONS LLC") - APPLY FILTERS EARLY
   SELECT pr.person_id, pr.full_name, 'Exact'::text AS match_type,
          0.95::float8 AS similarity_score,
          'BusinessCore'::text AS matched_field,
@@ -106,6 +114,8 @@ exact_matches AS (
   JOIN person pr ON pr.flag = 'B' 
     AND pr.business_core_name IS NOT NULL
     AND (pr.business_core_name = p.q OR pr.business_core_name = normalize_business_core(p.q))
+  WHERE (county_filter IS NULL OR pr.county = county_filter)
+    AND (flag_filter IS NULL OR pr.flag = flag_filter)
 ), nickname_matches_raw AS (
   -- Collect ONLY real nickname matches (where nickname expansion actually happened)
   -- This ensures "NicknameExpansion" results ONLY appear when nickname_maps has data
@@ -124,6 +134,7 @@ exact_matches AS (
 ), nickname_matches AS (
   -- Score nickname matches based on coverage, weighted by query complexity
   -- Higher scores than trigram to ensure nicknames are prioritized
+  -- EARLY FILTER: Apply county/flag filters now, not at the end
   SELECT 
     nmr.person_id,
     pr.full_name,
@@ -132,8 +143,8 @@ exact_matches AS (
       -- For single-token queries (like "bob"), give very high score (0.92-0.98)
       -- For multi-token, scale by coverage but keep above trigram threshold
       CASE 
-        WHEN (SELECT COUNT(*) FROM qtokens_weighted) = 1 THEN 0.92
-        ELSE 0.75 + 0.23 * (SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0))
+        WHEN qs.qtoken_count = 1 THEN 0.92
+        ELSE 0.75 + 0.23 * (SUM(nmr.token_weight) / NULLIF(qs.total_query_weight, 0))
       END,
       0.98
     ) AS similarity_score,
@@ -144,19 +155,22 @@ exact_matches AS (
     jsonb_build_object(
       'explanation', 'Nickname expansion match',
       'matchedTokens', COUNT(DISTINCT nmr.query_token),
-      'totalQueryTokens', (SELECT COUNT(*) FROM qtokens_weighted),
-      'coverage', ROUND((SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0) * 100)::numeric, 1),
-      'displayText', 'Matched ' || COUNT(DISTINCT nmr.query_token) || ' of ' || (SELECT COUNT(*) FROM qtokens_weighted) || ' tokens via nickname'
+      'totalQueryTokens', qs.qtoken_count,
+      'coverage', ROUND((SUM(nmr.token_weight) / NULLIF(qs.total_query_weight, 0) * 100)::numeric, 1),
+      'displayText', 'Matched ' || COUNT(DISTINCT nmr.query_token) || ' of ' || qs.qtoken_count || ' tokens via nickname'
     ) AS match_metadata
   FROM nickname_matches_raw nmr
+  CROSS JOIN qtokens_stats qs
   JOIN person pr ON pr.person_id = nmr.person_id AND pr.flag <> 'B'  -- Exclude businesses
   WHERE include_nicknames = TRUE
     AND EXISTS (SELECT 1 FROM expanded_qtokens_via_nicknames)  -- Only if nicknames exist
-  GROUP BY nmr.person_id, pr.full_name, pr.county, pr.flag
+    AND (county_filter IS NULL OR pr.county = county_filter)  -- EARLY FILTER
+    AND (flag_filter IS NULL OR pr.flag = flag_filter)  -- EARLY FILTER
+  GROUP BY nmr.person_id, pr.full_name, pr.county, pr.flag, qs.qtoken_count, qs.total_query_weight
   -- For multi-token queries, require meaningful coverage (at least 40% matched)
   -- For single-token queries, allow all matches
-  HAVING (SELECT COUNT(*) FROM qtokens_weighted) = 1 
-      OR (SUM(nmr.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)) >= 0.4
+  HAVING qs.qtoken_count = 1 
+      OR (SUM(nmr.token_weight) / NULLIF(qs.total_query_weight, 0)) >= 0.4
 ), token_matches AS (
   -- PHASE 2 OPTIMIZATION: Collect token matches with LIMIT to cap expensive fuzzy matching
   SELECT 
@@ -216,6 +230,7 @@ exact_matches AS (
   GROUP BY tbm.person_id
 ), rule_based_matches AS (
   -- Apply clear classes and scores so only full name exact reaches 1.0
+  -- EARLY FILTER: Apply county/flag filters here, not at the end
   SELECT 
     pts.person_id,
     pr.full_name,
@@ -223,16 +238,16 @@ exact_matches AS (
     LEAST(
       CASE 
         -- All tokens exact and no extra tokens
-        WHEN pts.exact_weight = pts.total_query_weight AND ptc.person_token_count = pts.qtoken_count THEN 0.95
+        WHEN pts.exact_weight = qs.total_query_weight AND ptc.person_token_count = qs.qtoken_count THEN 0.95
         -- All tokens exact but candidate has extra tokens: penalize extras proportionally
-        WHEN pts.exact_weight = pts.total_query_weight AND ptc.person_token_count > pts.qtoken_count THEN 
-          0.90 * (1 - 0.5 * ((ptc.person_token_count - pts.qtoken_count)::float / NULLIF(ptc.person_token_count::float, 0)))
+        WHEN pts.exact_weight = qs.total_query_weight AND ptc.person_token_count > qs.qtoken_count THEN 
+          0.90 * (1 - 0.5 * ((ptc.person_token_count - qs.qtoken_count)::float / NULLIF(ptc.person_token_count::float, 0)))
         -- High coverage fuzzy (>=80% of query weight matched via exact/fuzzy)
-        WHEN (pts.matched_weight / NULLIF(pts.total_query_weight, 0)) >= 0.8 THEN 
-          LEAST(0.75 + 0.14 * (pts.matched_weight / NULLIF(pts.total_query_weight, 0)) * COALESCE(pts.avg_sim, 0.8), 0.89)
+        WHEN (pts.matched_weight / NULLIF(qs.total_query_weight, 0)) >= 0.8 THEN 
+          LEAST(0.75 + 0.14 * (pts.matched_weight / NULLIF(qs.total_query_weight, 0)) * COALESCE(pts.avg_sim, 0.8), 0.89)
         -- Partial exact or low coverage fuzzy
         WHEN pts.matched_weight > 0 THEN 
-          LEAST(0.60 + 0.14 * (pts.matched_weight / NULLIF(pts.total_query_weight, 0)) * COALESCE(pts.avg_sim, 0.7), 0.74)
+          LEAST(0.60 + 0.14 * (pts.matched_weight / NULLIF(qs.total_query_weight, 0)) * COALESCE(pts.avg_sim, 0.7), 0.74)
         ELSE 0.0
       END 
       * (CASE WHEN pts.has_superstring THEN 0.85 ELSE 1 END),
@@ -245,34 +260,38 @@ exact_matches AS (
     jsonb_build_object(
       'explanation', 'Rule-based fuzzy match with coverage and exactness penalties',
       'classification', CASE 
-        WHEN pts.exact_weight = pts.total_query_weight AND ptc.person_token_count = pts.qtoken_count THEN 'AllTokensExact'
-        WHEN pts.exact_weight = pts.total_query_weight AND ptc.person_token_count > pts.qtoken_count THEN 'AllTokensExactPlusExtra'
-        WHEN (pts.matched_weight / NULLIF(pts.total_query_weight, 0)) >= 0.8 THEN 'HighCoverageFuzzy'
+        WHEN pts.exact_weight = qs.total_query_weight AND ptc.person_token_count = qs.qtoken_count THEN 'AllTokensExact'
+        WHEN pts.exact_weight = qs.total_query_weight AND ptc.person_token_count > qs.qtoken_count THEN 'AllTokensExactPlusExtra'
+        WHEN (pts.matched_weight / NULLIF(qs.total_query_weight, 0)) >= 0.8 THEN 'HighCoverageFuzzy'
         WHEN pts.matched_weight > 0 THEN 'PartialExact'
         ELSE 'Unclassified'
       END,
-      'coveragePct', ROUND(((pts.matched_weight / NULLIF(pts.total_query_weight, 0)) * 100)::numeric, 1),
-      'exactTokenPct', ROUND(((COALESCE(pts.exact_weight,0) / NULLIF(pts.total_query_weight, 0)) * 100)::numeric, 1),
+      'coveragePct', ROUND(((pts.matched_weight / NULLIF(qs.total_query_weight, 0)) * 100)::numeric, 1),
+      'exactTokenPct', ROUND(((COALESCE(pts.exact_weight,0) / NULLIF(qs.total_query_weight, 0)) * 100)::numeric, 1),
       'avgSimilarity', ROUND((COALESCE(pts.avg_sim,0) * 100)::numeric, 1),
-      'queryTokenCount', pts.qtoken_count,
+      'queryTokenCount', qs.qtoken_count,
       'personTokenCount', ptc.person_token_count,
       'hasSuperstringPenalty', pts.has_superstring,
-      'displayText', 'Coverage ' || ROUND(((pts.matched_weight / NULLIF(pts.total_query_weight, 0)) * 100)::numeric, 1) || '%; ' ||
-                     'Exact ' || ROUND(((COALESCE(pts.exact_weight,0) / NULLIF(pts.total_query_weight, 0)) * 100)::numeric, 1) || '%; ' ||
+      'displayText', 'Coverage ' || ROUND(((pts.matched_weight / NULLIF(qs.total_query_weight, 0)) * 100)::numeric, 1) || '%; ' ||
+                     'Exact ' || ROUND(((COALESCE(pts.exact_weight,0) / NULLIF(qs.total_query_weight, 0)) * 100)::numeric, 1) || '%; ' ||
                      CASE WHEN pts.has_superstring THEN 'Superstring penalty applied' ELSE 'No superstring penalty' END
     ) AS match_metadata
   FROM person_token_stats pts
+  CROSS JOIN qtokens_stats qs
   JOIN person pr ON pr.person_id = pts.person_id
   LEFT JOIN token_best_matches tbm ON tbm.person_id = pts.person_id
   CROSS JOIN params p
   CROSS JOIN LATERAL (SELECT COUNT(*) AS person_token_count FROM tokenize_name(pr.normalized_name)) ptc
-  -- Exclude exact full-name and business-core exact; they are provided by exact_matches already
-  WHERE pr.normalized_name <> p.q
+  -- EARLY FILTER: Apply filters before complex computations
+  WHERE (county_filter IS NULL OR pr.county = county_filter)
+    AND (flag_filter IS NULL OR pr.flag = flag_filter)
+    -- Exclude exact full-name and business-core exact; they are provided by exact_matches already
+    AND pr.normalized_name <> p.q
     AND NOT (
       pr.flag = 'B' AND pr.business_core_name IS NOT NULL AND 
       (pr.business_core_name = p.q OR pr.business_core_name = normalize_business_core(p.q))
     )
-  GROUP BY pts.person_id, pr.full_name, pr.county, pr.flag, pts.matched_weight, pts.total_query_weight, pts.exact_weight, pts.avg_sim, pts.qtoken_count, pts.has_superstring, ptc.person_token_count
+  GROUP BY pts.person_id, pr.full_name, pr.county, pr.flag, pts.matched_weight, qs.total_query_weight, pts.exact_weight, pts.avg_sim, qs.qtoken_count, pts.has_superstring, ptc.person_token_count
 ), phonetic_token_matches AS (
   -- Phonetic matching on individual tokens (not full query) for better precision
   -- Include token weights
@@ -304,6 +323,7 @@ exact_matches AS (
   JOIN person_names pn ON pn.soundex_code = soundex(qt.token)
 ), phonetic_matches AS (
   -- PHASE 2 OPTIMIZATION: Add LIMIT to phonetic matches and skip if exact found
+  -- EARLY FILTER: Apply county/flag filters now
   SELECT 
     ptm.person_id,
     pr.full_name,
@@ -313,7 +333,7 @@ exact_matches AS (
         WHEN 'DoubleMetaphone' THEN 0.59
         WHEN 'Metaphone' THEN 0.56
         WHEN 'Soundex' THEN 0.53
-      END * (SUM(ptm.token_weight) / NULLIF((SELECT SUM(token_weight) FROM qtokens_weighted), 0)),
+      END * (SUM(ptm.token_weight) / NULLIF(qs.total_query_weight, 0)),
       1.0
     ) AS similarity_score,
     ptm.phonetic_type AS matched_field,
@@ -323,14 +343,17 @@ exact_matches AS (
     jsonb_build_object(
       'explanation', 'Phonetic match using ' || ptm.phonetic_type || ' algorithm',
       'matchedTokens', COUNT(DISTINCT ptm.query_token),
-      'totalQueryTokens', (SELECT COUNT(*) FROM qtokens_weighted),
+      'totalQueryTokens', qs.qtoken_count,
       'displayText', 'Matched ' || COUNT(DISTINCT ptm.query_token) || ' tokens via ' || ptm.phonetic_type
     ) AS match_metadata
   FROM phonetic_token_matches ptm
+  CROSS JOIN qtokens_stats qs
   JOIN person pr ON pr.person_id = ptm.person_id
   WHERE include_fuzzy = TRUE
     AND NOT EXISTS (SELECT 1 FROM early_exact)  -- Skip if exact match found
-  GROUP BY ptm.person_id, pr.full_name, ptm.phonetic_type, pr.county, pr.flag
+    AND (county_filter IS NULL OR pr.county = county_filter)  -- EARLY FILTER
+    AND (flag_filter IS NULL OR pr.flag = flag_filter)  -- EARLY FILTER
+  GROUP BY ptm.person_id, pr.full_name, ptm.phonetic_type, pr.county, pr.flag, qs.qtoken_count, qs.total_query_weight
   LIMIT 1000  -- Cap phonetic candidates
 ), all_matches AS (
   -- Return early exact matches immediately if found
@@ -391,9 +414,7 @@ exact_matches AS (
 )
 SELECT person_id, full_name, match_type, similarity_score, matched_field, matched_value, county, flag, match_metadata
 FROM ranked
-WHERE (county_filter IS NULL OR county = county_filter)
-  AND (flag_filter IS NULL OR flag = flag_filter)
-  AND similarity_score >= min_similarity  -- Apply min_similarity threshold to all results
+WHERE similarity_score >= min_similarity  -- Apply min_similarity threshold ONLY here
 ORDER BY match_priority ASC, similarity_score DESC, full_name ASC
 LIMIT max_results;
 $$;

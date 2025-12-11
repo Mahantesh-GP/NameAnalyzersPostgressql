@@ -36,6 +36,9 @@ EXPLORATION SUMMARY
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+Note: We presented the cost analysis to stakeholder Jim, and Derric recommended piloting PostgreSQL.
+
+
 
 Why We Explored Azure AI Search → Shifted to PostgreSQL
 1. Azure AI Search: Powerful But Prohibitively Expensive
