@@ -45,7 +45,8 @@ qtokens AS (
   SELECT t.token, t.token_position
   FROM params p, tokenize_name(p.q) AS t
   WHERE length(t.token) >= 2
-    AND NOT EXISTS (SELECT 1 FROM early_exact)  -- Skip if exact match found
+    -- Note: Always compute tokens, even if exact matches found
+    -- This allows similar variations to be shown alongside exact matches
 ), qtokens_weighted AS (
   -- Assign weights: common suffixes/words get lower priority
   SELECT 
@@ -128,7 +129,8 @@ exact_matches AS (
   FROM expanded_qtokens_via_nicknames eqn
   JOIN person_names pn ON pn.name_token = eqn.token
   WHERE include_nicknames = TRUE
-    AND NOT EXISTS (SELECT 1 FROM early_exact)
+    -- Note: No longer skip if exact match found
+    -- Allow similar variations to be shown alongside exact matches
     -- Ensure we matched via the EXPANDED nickname, not the original query token
     AND eqn.token != eqn.original_token
 ), nickname_matches AS (
@@ -191,7 +193,8 @@ exact_matches AS (
             )
        )
   WHERE include_fuzzy = TRUE
-    AND NOT EXISTS (SELECT 1 FROM early_exact)  -- Skip if exact match found
+    -- Note: No longer skip if exact match found
+    -- Allow similar variations to be shown alongside exact matches
   LIMIT 5000  -- Cap candidates to prevent excessive computation
 ), token_best_matches AS (
   -- Choose the best match per person and query token with kind priority: exact > lev1 > fuzzy
@@ -350,7 +353,8 @@ exact_matches AS (
   CROSS JOIN qtokens_stats qs
   JOIN person pr ON pr.person_id = ptm.person_id
   WHERE include_fuzzy = TRUE
-    AND NOT EXISTS (SELECT 1 FROM early_exact)  -- Skip if exact match found
+    -- Note: No longer skip if exact match found
+    -- Allow similar variations to be shown alongside exact matches
     AND (county_filter IS NULL OR pr.county = county_filter)  -- EARLY FILTER
     AND (flag_filter IS NULL OR pr.flag = flag_filter)  -- EARLY FILTER
   GROUP BY ptm.person_id, pr.full_name, ptm.phonetic_type, pr.county, pr.flag, qs.qtoken_count, qs.total_query_weight
