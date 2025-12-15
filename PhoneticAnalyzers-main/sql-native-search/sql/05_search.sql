@@ -89,7 +89,7 @@ phonetic_matches AS (
   SELECT 
     pn.person_id,
     pr.full_name,
-    'DoubleMetaphone'::text AS match_type,
+    'Phonetic'::text AS match_type,
     0.59::float8 AS similarity_score,
     'PhoneticToken'::text AS matched_field,
     STRING_AGG(DISTINCT pn.name_token, ', ') AS matched_value,
@@ -168,20 +168,19 @@ all_matches AS (
   UNION ALL
   SELECT * FROM trigram_matches WHERE include_fuzzy = TRUE
 ),
--- Deduplicate: keep best match per person_id
 ranked AS (
-  SELECT DISTINCT ON (person_id)
-    person_id,
-    full_name,
-    match_type,
-    similarity_score,
-    matched_field,
-    matched_value,
-    county,
-    flag,
-    match_metadata
-  FROM all_matches
-  ORDER BY person_id, priority ASC, similarity_score DESC
+  SELECT DISTINCT ON (am.person_id)
+    am.person_id,
+    am.full_name,
+    am.match_type,
+    am.similarity_score,
+    am.matched_field,
+    am.matched_value,
+    am.county,
+    am.flag,
+    am.match_metadata
+  FROM all_matches am
+  ORDER BY am.person_id, am.priority ASC, am.similarity_score DESC
 )
 -- Final output: order by score and apply limit
 SELECT 

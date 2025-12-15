@@ -61,6 +61,11 @@ class SearchService:
                 # Parse results
                 matches = []
                 for result in data.get("results", []):
+                    # Normalize match type to align with client enum
+                    match_type_raw = result.get("matchType", "Exact")
+                    if match_type_raw == "DoubleMetaphone":
+                        match_type_raw = MatchType.PHONETIC.value
+
                     matches.append(
                         PersonMatch(
                             person_id=result.get("personId", 0),
@@ -71,7 +76,7 @@ class SearchService:
                             county_id=result.get("countyId", 0),
                             county_name=result.get("countyName", ""),
                             flag=result.get("flag", ""),
-                            match_type=MatchType(result.get("matchType", "Exact")),
+                            match_type=MatchType(match_type_raw),
                             similarity_score=result.get("similarityScore", 0) * 100,  # Convert to percentage
                             match_metadata=result.get("matchMetadata"),
                         )
