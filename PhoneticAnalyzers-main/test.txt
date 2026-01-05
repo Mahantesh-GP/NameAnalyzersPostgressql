@@ -14,3 +14,7 @@ When to use smaller chunk-level splitting
 How to evaluate chunking for a new RAG use case
 
 How to explain these choices during reviews or audits
+
+
+
+trst
