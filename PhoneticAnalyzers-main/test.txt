@@ -1,0 +1,16 @@
+I agree that LlamaIndex provides a strong baseline.
+What they offer is a benchmark-style evaluation of chunk sizes under a fixed setup.
+
+My work goes one level up — instead of recommending sizes, I’m extracting design principles that explain why those sizes work or fail and when to use them.
+
+This helps us avoid overfitting to one dataset and gives us a reusable framework for enterprise RAG use cases, especially when query types, documents, or models change.
+
+So rather than replacing LlamaIndex, I’m generalizing and operationalizing it for our architecture.”
+
+When to use document-level chunking
+
+When to use smaller chunk-level splitting
+
+How to evaluate chunking for a new RAG use case
+
+How to explain these choices during reviews or audits
