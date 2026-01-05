@@ -3,7 +3,8 @@
 ## Prerequisites
 
 - Python 3.11+
-- PostgreSQL 14+ with `phonetic_native` database configured
+- .NET 9 SDK (for the C# API)
+- PostgreSQL 14+ with `phonetic_native` database configured (used by the API)
 - Poetry (recommended) or pip
 
 ## Installation
@@ -20,8 +21,7 @@ poetry install
 # Copy environment configuration
 cp .env.example .env
 
-# Edit .env with your database credentials
-# DATABASE_URL=postgresql://postgres:your_password@localhost:5432/phonetic_native
+# Edit .env with your settings (see Configuration)
 ```
 
 ### Using pip
@@ -36,17 +36,31 @@ cp .env.example .env
 
 ## Configuration
 
-Edit `.env` file with your PostgreSQL connection details:
+The Python UI calls the .NET Core API. Configure the UI `.env`:
 
 ```env
-DATABASE_URL=postgresql://postgres:your_password@localhost:5432/phonetic_native
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/phonetic_native
 HOST=0.0.0.0
 PORT=8000
 DEBUG=true
 LOG_LEVEL=info
+API_BASE_URL=http://localhost:5100
 ```
 
 ## Running the Application
+
+### 1) Start the .NET Core API
+
+```powershell
+cd ../sql-native-search/api
+dotnet restore
+dotnet build
+dotnet run
+```
+
+The API listens at: **http://localhost:5100** (see `Properties/launchSettings.json`).
+
+### 2) Start the Python UI
 
 ### Using Poetry
 
@@ -61,7 +75,7 @@ poetry run python run.py
 python run.py
 ```
 
-The application will start at: **http://localhost:8000**
+The UI will start at: **http://localhost:8000**
 
 ## Testing the Search
 
@@ -79,16 +93,16 @@ The application will start at: **http://localhost:8000**
    - **Grouped**: Results grouped by match type
 5. Click **Search**
 
-## API Endpoints
+## UI Endpoints
 
-All API endpoints are documented at: **http://localhost:8000/docs**
+FastAPI docs for the UI are at: **http://localhost:8000/docs**
 
 ### Main Endpoints
 
-- `POST /api/search` - Search for persons
-- `GET /api/suggestions` - Autocomplete suggestions
-- `GET /api/counties` - List of counties
-- `GET /health` - Health check
+- `POST /api/search` - UI search (calls C# API `/api/search/advanced`)
+- `GET /api/suggestions` - Autocomplete suggestions (calls C# API `/api/search/suggestions`)
+- `GET /api/counties` - List of counties (calls C# API `/api/counties`)
+- `GET /health` - UI health check
 
 ## Development
 
@@ -113,12 +127,13 @@ poetry run pytest tests/ -v
 
 ## Common Issues
 
-### Database Connection Failed
+### API or Database Connection Failed
 
-1. Verify PostgreSQL is running: `Get-Service -Name postgresql*`
-2. Check database exists: `psql -U postgres -c "\l"`
-3. Verify credentials in `.env` file
-4. Test connection: `psql -U postgres -d phonetic_native -c "SELECT 1"`
+1. Verify the .NET API is running and reachable: **http://localhost:5100/swagger**
+2. Check PostgreSQL is running: `Get-Service -Name postgresql*`
+3. Verify database exists: `psql -U postgres -c "\l"`
+4. Verify credentials in `sql-native-search/api/appsettings.json` and UI `.env`
+5. Test DB connection: `psql -U postgres -d phonetic_native -c "SELECT 1"`
 
 ### Port Already in Use
 
